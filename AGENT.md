@@ -1,6 +1,6 @@
 # Math MCP Server
 
-Symbolic math via SymPy. Eight tools for algebra, calculus, and evaluation.
+Symbolic math via SymPy. Eleven tools for algebra, calculus, fractions, unit conversion, and evaluation.
 
 ## Tools
 
@@ -14,6 +14,9 @@ Symbolic math via SymPy. Eight tools for algebra, calculus, and evaluation.
 | `factor(expression)` | Factor into products |
 | `evaluate(expression, values?)` | Compute numeric result |
 | `latex(expression)` | Convert to LaTeX |
+| `to_fraction(value)` | Convert decimal to fraction |
+| `simplify_fraction(fraction)` | Simplify fraction to lowest terms |
+| `convert_unit(value, from_unit, to_unit)` | Convert between units |
 
 ## Quick Examples
 
@@ -62,6 +65,24 @@ integral("cos(x)", "x")                 → sin(x)
 
 ```
 latex("x^2 + 1/2")                      → x^{2} + \frac{1}{2}
+```
+
+### Fractions
+
+```
+to_fraction("0.5")                       → 1/2
+to_fraction("0.75")                     → 3/4
+simplify_fraction("6/8")                → 3/4
+simplify_fraction("(x^2-4)/(x-2)")      → x + 2
+```
+
+### Unit Conversion
+
+```
+convert_unit(100, "meter", "kilometer") → 0.1
+convert_unit(32, "fahrenheit", "celsius") → 0
+convert_unit(1, "hour", "minute")      → 60
+convert_unit(5, "kilometer", "mile")    → 3.106855...
 ```
 
 ## Expression Syntax

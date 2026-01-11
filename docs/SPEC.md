@@ -134,6 +134,63 @@ Convert expression to LaTeX format.
 
 ---
 
+### `to_fraction`
+
+Convert a decimal number or expression to a rational fraction (exact form).
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `value` | string | Decimal number or expression to convert to fraction, e.g. `0.5`, `0.333`, `1.25` |
+
+**Examples:**
+- `0.5` → `1/2`
+- `0.333` → `333/1000` (or simplified if exact)
+- `1.25` → `5/4`
+- `0.75` → `3/4`
+
+---
+
+### `simplify_fraction`
+
+Simplify a fraction to its lowest terms.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `fraction` | string | Fraction expression to simplify, e.g. `6/8`, `12/18`, `(x^2-4)/(x-2)` |
+
+**Examples:**
+- `6/8` → `3/4`
+- `12/18` → `2/3`
+- `(x^2-4)/(x-2)` → `x + 2` (if x ≠ 2)
+
+---
+
+### `convert_unit`
+
+Convert a quantity from one unit to another.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `value` | number | Numeric value to convert |
+| `from_unit` | string | Source unit (e.g. `meter`, `kilogram`, `second`, `celsius`) |
+| `to_unit` | string | Target unit (e.g. `foot`, `pound`, `minute`, `fahrenheit`) |
+
+**Supported unit categories:**
+- **Length**: `meter`, `kilometer`, `centimeter`, `millimeter`, `mile`, `foot`, `inch`, `yard`
+- **Mass**: `kilogram`, `gram`, `pound`
+- **Time**: `second`, `minute`, `hour`, `day`
+- **Temperature**: `celsius`, `fahrenheit`, `kelvin` (handles offset conversions correctly)
+- **Volume**: `liter`, `milliliter`, `quart`
+- **Speed**: `meter_per_second`, `kilometer_per_hour`, `mile_per_hour`
+
+**Examples:**
+- `value=100, from_unit="meter", to_unit="kilometer"` → `0.1`
+- `value=5, from_unit="kilometer", to_unit="mile"` → `3.106855...`
+- `value=32, from_unit="fahrenheit", to_unit="celsius"` → `0`
+- `value=1, from_unit="hour", to_unit="minute"` → `60`
+
+---
+
 ## Expression Syntax
 
 SymPy's parser handles:
