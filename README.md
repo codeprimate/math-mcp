@@ -4,13 +4,51 @@ Powerful symbolic mathematics for Cursor AI. Solve equations, compute derivative
 
 ## Quick Start with Docker
 
+### Option 1: Docker Compose (Recommended for HTTP Mode)
+
+The easiest way to run the HTTP server:
+
+```bash
+# Start the server (uses docker-compose.yml)
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop the server
+docker-compose down
+
+# Customize configuration (optional)
+# 1. Copy .env.example to .env and edit
+# 2. Or edit docker-compose.yml directly
+# 3. Or use docker-compose.override.yml for local overrides
+```
+
+**Configuration via environment variables:**
+- Create a `.env` file or set environment variables
+- See `docker-compose.yml` for all available options
+- Default: HTTP server on port 8000, accessible from host and Docker network
+
+### Option 2: Docker CLI
+
 ```bash
 # Build
 docker build -t math-mcp .
 
-# Test
+# Test (stdio mode - for CLI usage)
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | docker run -i --rm math-mcp
+
+# Run HTTP server (persistent mode)
+docker run -d -p 8000:8000 --name math-mcp-server \
+  -e MCP_TRANSPORT=streamable-http \
+  -e MCP_HOST=0.0.0.0 \
+  -e MCP_PORT=8000 \
+  math-mcp
 ```
+
+The server supports two transport modes:
+- **stdio** (default): For CLI usage and Cursor integration via Docker
+- **streamable-http**: For persistent hosting accessible via HTTP from Docker networks and host applications (uses Server-Sent Events)
 
 ## Add to Cursor
 
@@ -25,7 +63,9 @@ Add to your Cursor MCP settings (`~/.cursor/mcp.json`). This enables Cursor to u
 - Converting decimals to fractions and simplifying fractions
 - Converting between measurement units (length, mass, time, temperature, etc.)
 
-### Option 1: Docker (Recommended)
+### Option 1: Docker with stdio Transport (Recommended for Cursor)
+
+This mode runs the server via Docker CLI, perfect for Cursor integration:
 
 ```json
 {
@@ -41,6 +81,135 @@ Add to your Cursor MCP settings (`~/.cursor/mcp.json`). This enables Cursor to u
 **Note:** Make sure you've built the Docker image first:
 ```bash
 docker build -t math-mcp .
+```
+
+### Option 1a: Docker Compose (Easiest for HTTP Mode)
+
+**Recommended for HTTP mode** - Simple one-command startup:
+
+```bash
+# Start server with default configuration (port 8000)
+docker-compose up -d
+
+# View logs
+docker-compose logs -f math-mcp
+
+# Stop server
+docker-compose down
+
+# Customize port (edit docker-compose.yml or use .env file)
+# Set MCP_HOST_PORT=9000 to use port 9000 on host
+```
+
+**Configuration:**
+- Edit `docker-compose.yml` directly, or
+- Create `.env` file with your settings (see `docker-compose.yml` for variable names), or
+- Use `docker-compose.override.yml` for local overrides (git-ignored)
+
+**Example .env file:**
+```bash
+# Copy env.example to .env and customize
+MCP_TRANSPORT=streamable-http
+MCP_HOST=0.0.0.0
+MCP_PORT=8000
+MCP_HOST_PORT=8000
+MCP_PATH=/mcp
+```
+
+**Quick examples:**
+```bash
+# Use custom port 9000
+echo "MCP_HOST_PORT=9000" > .env
+docker-compose up -d
+
+# Use stdio mode (disable healthcheck, remove port mapping)
+# Option 1: Set in .env file
+echo "MCP_TRANSPORT=stdio" >> .env
+echo "DISABLE_HEALTHCHECK=true" >> .env
+# Then edit docker-compose.yml to comment out the ports section
+docker-compose up -d
+
+# Option 2: Use docker-compose.override.yml (see docker-compose.override.yml.example)
+```
+
+**Accessing from other containers:**
+```bash
+# Server is accessible at: http://math-mcp-server:8000/mcp
+# (or use the container name and your configured port)
+```
+
+### Option 1b: Docker with HTTP Transport (For Persistent Hosting)
+
+For persistent hosting accessible from Docker networks and host applications:
+
+```bash
+# Start persistent HTTP server (using default port 8000)
+docker run -d -p 8000:8000 --name math-mcp-server \
+  -e MCP_TRANSPORT=streamable-http \
+  -e MCP_HOST=0.0.0.0 \
+  -e MCP_PORT=8000 \
+  -e MCP_PATH=/mcp \
+  math-mcp
+
+# Or use a custom port (e.g., 9000)
+docker run -d -p 9000:9000 --name math-mcp-server \
+  -e MCP_TRANSPORT=streamable-http \
+  -e MCP_HOST=0.0.0.0 \
+  -e MCP_PORT=9000 \
+  -e MCP_PATH=/mcp \
+  math-mcp
+
+# Server will be available at:
+# - http://localhost:<MCP_PORT>/mcp (from host, use the port you configured)
+# - http://math-mcp-server:<MCP_PORT>/mcp (from Docker network)
+# - http://<container-ip>:<MCP_PORT>/mcp (from other containers)
+
+# Stop the server
+docker stop math-mcp-server
+docker rm math-mcp-server
+```
+
+**Configuration options:**
+- `MCP_TRANSPORT=streamable-http` - Enable HTTP transport (uses Server-Sent Events)
+- `MCP_HOST=0.0.0.0` - Bind to all interfaces (accessible from host and Docker network)
+- `MCP_PORT=<port>` - Port to listen on inside container (default: 8000). **Important:** Use `-p <host-port>:<container-port>` to map the port when running Docker, where `<container-port>` should match `MCP_PORT`
+- `MCP_PATH=/mcp` - HTTP endpoint path (default: /mcp)
+
+**Note:** The streamable-http transport uses Server-Sent Events (SSE) and requires session management. See [HTTP Transport Usage](#http-transport-usage) section below for complete examples.
+
+**Port mapping examples:**
+```bash
+# Container listens on 8000, map to host port 8000
+docker run -d -p 8000:8000 -e MCP_PORT=8000 ...
+
+# Container listens on 9000, map to host port 9000
+docker run -d -p 9000:9000 -e MCP_PORT=9000 ...
+
+# Container listens on 8000, map to different host port 3000
+docker run -d -p 3000:8000 -e MCP_PORT=8000 ...
+```
+
+**Docker network usage:**
+```bash
+# Create a network
+docker network create math-network
+
+# Run server in network (port 8000)
+docker run -d --name math-mcp-server --network math-network \
+  -e MCP_TRANSPORT=streamable-http \
+  -e MCP_HOST=0.0.0.0 \
+  -e MCP_PORT=8000 \
+  math-mcp
+
+# Or use a custom port (e.g., 9000)
+docker run -d --name math-mcp-server --network math-network \
+  -e MCP_TRANSPORT=streamable-http \
+  -e MCP_HOST=0.0.0.0 \
+  -e MCP_PORT=9000 \
+  math-mcp
+
+# Other containers in the same network can access:
+# http://math-mcp-server:<MCP_PORT>/mcp
 ```
 
 ### Option 2: Local Python
@@ -130,62 +299,176 @@ Perfect for code that involves math, physics simulations, data analysis, or any 
 
 ## Examples
 
-### Basic Operations
+### Command Line Usage
 
-```python
-# Simplify expressions
-simplify(expression="x^2 + 2*x + 1")           → "(x + 1)**2"
-simplify(expression="sin(x)^2 + cos(x)^2")     → "1"
+The MCP server communicates via JSON-RPC over stdio. You must initialize the server before calling tools.
 
-# Solve equations (equation = 0)
-solve(equation="x^2 - 4", variable="x")         → ["-2", "2"]
-solve(equation="2*x - 8", variable="x")        → ["4"]
+#### Proper Initialization Sequence
 
-# Calculus
-derivative(expression="x^3", variable="x")    → "3*x**2"
-integral(expression="x^2", variable="x")       → "x**3/3"
+MCP requires an initialization handshake before calling tools. Send all messages to a single container instance:
 
-# Evaluate numerically
-evaluate(expression="2*pi")                    → "6.28318530717959"
-evaluate(expression="x^2 + 1", values={"x": 3}) → "10"
-
-# Fractions
-to_fraction(value="0.5")                      → "1/2"
-to_fraction(value="0.75")                    → "3/4"
-simplify_fraction(fraction="6/8")            → "3/4"
-simplify_fraction(fraction="(x^2-4)/(x-2)")  → "x + 2"
-
-# Unit conversion
-convert_unit(value=100, from_unit="meter", to_unit="kilometer") → "0.1"
-convert_unit(value=32, from_unit="fahrenheit", to_unit="celsius") → "0"
-convert_unit(value=1, from_unit="hour", to_unit="minute") → "60"
+```bash
+# Send initialization sequence + tool call together
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+ echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"simplify","arguments":{"expression":"sin(x)^2 + cos(x)^2"}}}') | \
+ docker run -i --rm math-mcp
 ```
 
-### Real-World Use Cases
-
-**Solving word problems:**
-```python
-# "If 2x + 5 = 13, what is x?"
-# Rearrange: 2x + 5 - 13 = 0 → 2x - 8 = 0
-solve(equation="2*x - 8", variable="x")  → ["4"]
+Expected response includes initialization result, then tool result:
+```json
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{...},"serverInfo":{"name":"Math","version":"1.25.0"}}}
+{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"1"}]}}
 ```
 
-**Finding critical points:**
-```python
-# Find where f(x) = x^3 - 3x has zero derivative
-derivative(expression="x^3 - 3*x", variable="x")  → "3*x**2 - 3"
-solve(equation="3*x^2 - 3", variable="x")         → ["-1", "1"]
+#### Example Tool Calls
+
+Each tool call requires the initialization sequence. Here are examples:
+
+```bash
+# Solve equation: x^2 - 4 = 0
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+ echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"solve","arguments":{"equation":"x^2 - 4","variable":"x"}}}') | \
+ docker run -i --rm math-mcp
+
+# Compute derivative of x^3
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+ echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"derivative","arguments":{"expression":"x^3","variable":"x"}}}') | \
+ docker run -i --rm math-mcp
+
+# Evaluate 2*pi
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+ echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"evaluate","arguments":{"expression":"2*pi"}}}') | \
+ docker run -i --rm math-mcp
+
+# Convert 100 meters to kilometers
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+ echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"convert_unit","arguments":{"value":100,"from_unit":"meter","to_unit":"kilometer"}}}') | \
+ docker run -i --rm math-mcp
 ```
 
-**Verifying identities:**
-```python
-# Check if (a+b)^2 = a^2 + 2ab + b^2
-simplify(expression="(a+b)^2 - (a^2 + 2*a*b + b^2)")  → "0"  # They're equal!
+**Note:** For local Python usage, replace `docker run -i --rm math-mcp` with `python -m math_mcp.server`.
+
+#### HTTP Transport Usage
+
+When running in HTTP mode, the server exposes a REST endpoint using Server-Sent Events (SSE). First, start the server:
+
+```bash
+# Using default port 8000
+docker run -d -p 8000:8000 --name math-mcp-server \
+  -e MCP_TRANSPORT=streamable-http \
+  -e MCP_HOST=0.0.0.0 \
+  -e MCP_PORT=8000 \
+  math-mcp
+
+# Or using a custom port (e.g., 9000)
+docker run -d -p 9000:9000 --name math-mcp-server \
+  -e MCP_TRANSPORT=streamable-http \
+  -e MCP_HOST=0.0.0.0 \
+  -e MCP_PORT=9000 \
+  math-mcp
 ```
 
-**Formatting for documentation:**
-```python
-latex(expression="x^2 + 1/2")  → "x^{2} + \\frac{1}{2}"
+**Important:** The streamable-http transport requires:
+- `Accept: application/json, text/event-stream` header (for SSE)
+- Session ID management (extract from initialization response)
+
+**Example: Initialize and call tools via HTTP**
+
+```bash
+# Step 1: Initialize and capture session ID
+RESPONSE=$(curl -s -X POST http://localhost:8000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -D - \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}')
+
+# Extract session ID from response headers
+SESSION_ID=$(echo "$RESPONSE" | grep -i "mcp-session-id" | cut -d' ' -f2 | tr -d '\r')
+
+# Step 2: Call tools using the session ID
+curl -X POST http://localhost:8000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "mcp-session-id: $SESSION_ID" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"simplify","arguments":{"expression":"sin(x)^2 + cos(x)^2"}}}'
+
+# Expected response (SSE format):
+# event: message
+# data: {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"1"}],...}}
+```
+
+**Complete example with multiple tool calls:**
+
+```bash
+# Initialize
+RESPONSE=$(curl -s -X POST http://localhost:8000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -D - \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}')
+
+SESSION_ID=$(echo "$RESPONSE" | grep -i "mcp-session-id" | cut -d' ' -f2 | tr -d '\r')
+
+# Simplify expression
+curl -X POST http://localhost:8000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "mcp-session-id: $SESSION_ID" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"simplify","arguments":{"expression":"sin(x)^2 + cos(x)^2"}}}'
+
+# Solve equation
+curl -X POST http://localhost:8000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "mcp-session-id: $SESSION_ID" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"solve","arguments":{"equation":"x^2 - 4","variable":"x"}}}'
+
+# Evaluate expression
+curl -X POST http://localhost:8000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "mcp-session-id: $SESSION_ID" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"evaluate","arguments":{"expression":"2*pi"}}}'
+```
+
+**From other Docker containers:**
+```bash
+# If running in a Docker network, use the container name and configured port
+# (replace 8000 with your MCP_PORT value)
+RESPONSE=$(curl -s -X POST http://math-mcp-server:8000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -D - \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}')
+
+SESSION_ID=$(echo "$RESPONSE" | grep -i "mcp-session-id" | cut -d' ' -f2 | tr -d '\r')
+
+curl -X POST http://math-mcp-server:8000/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "mcp-session-id: $SESSION_ID" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"simplify","arguments":{"expression":"x + x"}}}'
+```
+
+#### Interactive Session with Multiple Requests
+
+For multiple tool calls, send the full initialization sequence followed by your requests:
+
+```bash
+cat > requests.jsonl << 'EOF'
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"simplify","arguments":{"expression":"x + x"}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"solve","arguments":{"equation":"x^2 - 9","variable":"x"}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"derivative","arguments":{"expression":"x^3","variable":"x"}}}
+EOF
+
+cat requests.jsonl | docker run -i --rm math-mcp
 ```
 
 ## Local Development
@@ -194,7 +477,12 @@ latex(expression="x^2 + 1/2")  → "x^{2} + \\frac{1}{2}"
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
+
+# Run in stdio mode (default)
 python -m math_mcp.server
+
+# Run in HTTP mode
+MCP_TRANSPORT=http MCP_HOST=127.0.0.1 MCP_PORT=8000 python -m math_mcp.server
 ```
 
 ## Testing

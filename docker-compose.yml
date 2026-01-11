@@ -1,0 +1,43 @@
+services:
+  math-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: math-mcp:latest
+    container_name: math-mcp-server
+    restart: unless-stopped
+    environment:
+      # Transport mode: "stdio" or "streamable-http"
+      # Use "streamable-http" for persistent HTTP server accessible from network
+      MCP_TRANSPORT: ${MCP_TRANSPORT:-streamable-http}
+      
+      # Host binding (0.0.0.0 = all interfaces, accessible from host and Docker network)
+      MCP_HOST: ${MCP_HOST:-0.0.0.0}
+      
+      # Port to listen on inside container
+      MCP_PORT: ${MCP_PORT:-8000}
+      
+      # HTTP endpoint path
+      MCP_PATH: ${MCP_PATH:-/mcp}
+    ports:
+      # Map host port to container port
+      # Format: "host-port:container-port"
+      # Change 8000:8000 to use a different host port (e.g., "9000:8000")
+      - "${MCP_HOST_PORT:-8000}:${MCP_PORT:-8000}"
+    networks:
+      - math-mcp-network
+    # Health check only works for HTTP transport mode
+    # For stdio mode, set DISABLE_HEALTHCHECK=true in .env or remove this section
+    healthcheck:
+      # Simple HTTP check - tries to connect to the endpoint
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/mcp\")' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+      disable: ${DISABLE_HEALTHCHECK:-false}
+
+networks:
+  math-mcp-network:
+    name: math-mcp-network
+    driver: bridge

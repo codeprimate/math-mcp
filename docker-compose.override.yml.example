@@ -1,0 +1,21 @@
+# Example override file for custom configuration
+# Copy this to docker-compose.override.yml and customize as needed
+# docker-compose automatically merges override.yml with docker-compose.yml
+
+services:
+  math-mcp:
+    environment:
+      # Example: Use custom port
+      MCP_PORT: 9000
+      MCP_HOST_PORT: 9000
+      
+      # Example: Use stdio mode instead of HTTP
+      # MCP_TRANSPORT: stdio
+      # Note: When using stdio, remove or comment out the ports section
+      
+    ports:
+      # Example: Map container port 8000 to host port 3000
+      # - "3000:8000"
+      
+      # Example: Expose on all interfaces with custom host port
+      # - "0.0.0.0:9000:8000"

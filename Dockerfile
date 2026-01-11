@@ -26,5 +26,7 @@ ENV PYTHONPATH=/app/src
 ENV PYTHONUNBUFFERED=1
 ENV PATH=/root/.local/bin:$PATH
 
-# Run the server (stdio transport for MCP)
+# Run the server (defaults to stdio transport, can be overridden with MCP_TRANSPORT env var)
+# Port is configurable via MCP_PORT environment variable (default: 8000)
+# Use -p <host-port>:<container-port> to map ports when running the container
 CMD ["python", "-m", "math_mcp.server"]

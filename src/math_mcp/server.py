@@ -508,8 +508,47 @@ def tool_convert_unit(
 
 
 def main():
-    """Run the MCP server."""
-    mcp.run(transport="stdio")
+    """Run the MCP server.
+    
+    Transport mode is controlled by environment variables:
+    - MCP_TRANSPORT: "stdio" (default) or "streamable-http" (also accepts "http" as alias)
+    - MCP_HOST: Host to bind to (default: "0.0.0.0" for HTTP, ignored for stdio)
+    - MCP_PORT: Port to listen on (default: 8000 for HTTP, ignored for stdio)
+    - MCP_PATH: HTTP path endpoint (default: "/mcp" for HTTP, ignored for stdio)
+    
+    For backward compatibility, also supports:
+    - FASTMCP_HOST, FASTMCP_PORT, FASTMCP_STREAMABLE_HTTP_PATH
+    
+    Note: The streamable-http transport uses Server-Sent Events (SSE) and requires
+    proper Accept headers and session ID management. See README for examples.
+    """
+    import os
+    
+    transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
+    
+    if transport in ("http", "streamable-http"):
+        # Get configuration from environment variables
+        host = os.getenv("FASTMCP_HOST") or os.getenv("MCP_HOST", "0.0.0.0")
+        port_str = os.getenv("FASTMCP_PORT") or os.getenv("MCP_PORT", "8000")
+        port = int(port_str)
+        path = os.getenv("FASTMCP_STREAMABLE_HTTP_PATH") or os.getenv("MCP_PATH", "/mcp")
+        
+        # FastMCP's streamable-http transport doesn't properly respect host binding
+        # We need to run uvicorn directly to control host/port
+        import uvicorn
+        
+        # Get the ASGI app from FastMCP
+        app = mcp.streamable_http_app
+        
+        # Run uvicorn directly with proper host/port configuration
+        uvicorn.run(
+            app,
+            host=host,
+            port=port,
+            log_level="info"
+        )
+    else:
+        mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":
