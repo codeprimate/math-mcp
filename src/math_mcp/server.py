@@ -511,44 +511,56 @@ def main():
     """Run the MCP server.
     
     Transport mode is controlled by environment variables:
-    - MCP_TRANSPORT: "stdio" (default) or "streamable-http" (also accepts "http" as alias)
+    - MCP_TRANSPORT: "stdio" (default) or "http" or "streamable-http"
     - MCP_HOST: Host to bind to (default: "0.0.0.0" for HTTP, ignored for stdio)
-    - MCP_PORT: Port to listen on (default: 8000 for HTTP, ignored for stdio)
-    - MCP_PATH: HTTP path endpoint (default: "/mcp" for HTTP, ignored for stdio)
+    - MCP_PORT: Port to listen on (default: 8008 for HTTP, ignored for stdio)
     
-    For backward compatibility, also supports:
-    - FASTMCP_HOST, FASTMCP_PORT, FASTMCP_STREAMABLE_HTTP_PATH
-    
-    Note: The streamable-http transport uses Server-Sent Events (SSE) and requires
-    proper Accept headers and session ID management. See README for examples.
+    HTTP mode uses Server-Sent Events (SSE) for streaming responses.
     """
     import os
+    import sys
     
-    transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
-    
-    if transport in ("http", "streamable-http"):
-        # Get configuration from environment variables
-        host = os.getenv("FASTMCP_HOST") or os.getenv("MCP_HOST", "0.0.0.0")
-        port_str = os.getenv("FASTMCP_PORT") or os.getenv("MCP_PORT", "8000")
-        port = int(port_str)
-        path = os.getenv("FASTMCP_STREAMABLE_HTTP_PATH") or os.getenv("MCP_PATH", "/mcp")
+    try:
+        transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
         
-        # FastMCP's streamable-http transport doesn't properly respect host binding
-        # We need to run uvicorn directly to control host/port
-        import uvicorn
-        
-        # Get the ASGI app from FastMCP
-        app = mcp.streamable_http_app
-        
-        # Run uvicorn directly with proper host/port configuration
-        uvicorn.run(
-            app,
-            host=host,
-            port=port,
-            log_level="info"
-        )
-    else:
-        mcp.run(transport="stdio")
+        if transport in ("http", "streamable-http"):
+            # Get configuration from environment variables
+            host = os.getenv("MCP_HOST", "0.0.0.0")
+            port_str = os.getenv("MCP_PORT", "8008")
+            port = int(port_str)
+            
+            # Log startup info to stderr for debugging
+            print(f"[math-mcp] Starting HTTP server on {host}:{port}", file=sys.stderr)
+            print(f"[math-mcp] Transport mode: {transport}", file=sys.stderr)
+            
+            import uvicorn
+            
+            # Use FastMCP's native HTTP app - it handles everything
+            app = mcp.streamable_http_app
+            
+            # Run uvicorn with proper configuration
+            # Note: Uvicorn doesn't support HTTP/2, but FastMCP's streamable_http_app
+            # works with HTTP/1.1 using Server-Sent Events for streaming
+            uvicorn.run(
+                app,
+                host=host,
+                port=port,
+                log_level="info",
+                # Ensure we don't close connections prematurely
+                timeout_keep_alive=75,
+                timeout_graceful_shutdown=30,
+                # Enable access logging to see all requests
+                access_log=True
+            )
+        else:
+            print(f"[math-mcp] Starting stdio server", file=sys.stderr)
+            mcp.run(transport="stdio")
+    except Exception as e:
+        # Log errors to stderr so they appear in MCP logs
+        print(f"[math-mcp] Error starting server: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -14,8 +14,8 @@ services:
       # Note: When using stdio, remove or comment out the ports section
       
     ports:
-      # Example: Map container port 8000 to host port 3000
-      # - "3000:8000"
+      # Example: Map container port 8008 to host port 3000
+      # - "3000:8008"
       
       # Example: Expose on all interfaces with custom host port
-      # - "0.0.0.0:9000:8000"
+      # - "0.0.0.0:9000:8008"

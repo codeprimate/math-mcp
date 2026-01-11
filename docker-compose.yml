@@ -15,22 +15,22 @@ services:
       MCP_HOST: ${MCP_HOST:-0.0.0.0}
       
       # Port to listen on inside container
-      MCP_PORT: ${MCP_PORT:-8000}
+      MCP_PORT: ${MCP_PORT:-8008}
       
       # HTTP endpoint path
       MCP_PATH: ${MCP_PATH:-/mcp}
     ports:
       # Map host port to container port
       # Format: "host-port:container-port"
-      # Change 8000:8000 to use a different host port (e.g., "9000:8000")
-      - "${MCP_HOST_PORT:-8000}:${MCP_PORT:-8000}"
+      # Change 8008:8008 to use a different host port (e.g., "9000:8008")
+      - "${MCP_HOST_PORT:-8008}:${MCP_PORT:-8008}"
     networks:
       - math-mcp-network
     # Health check only works for HTTP transport mode
     # For stdio mode, set DISABLE_HEALTHCHECK=true in .env or remove this section
     healthcheck:
-      # Simple HTTP check - tries to connect to the endpoint
-      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/mcp\")' || exit 1"]
+      # POST request with proper headers to initialize the MCP server
+      test: ["CMD-SHELL", "python -c \"import urllib.request, json; req = urllib.request.Request('http://localhost:8008/mcp', data=json.dumps({'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2024-11-05','capabilities':{},'clientInfo':{'name':'healthcheck','version':'1.0'}}}).encode(), headers={'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream'}); urllib.request.urlopen(req, timeout=5).read()\" || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -27,7 +27,7 @@ docker-compose down
 **Configuration via environment variables:**
 - Create a `.env` file or set environment variables
 - See `docker-compose.yml` for all available options
-- Default: HTTP server on port 8000, accessible from host and Docker network
+- Default: HTTP server on port 8008, accessible from host and Docker network
 
 ### Option 2: Docker CLI
 
@@ -39,10 +39,10 @@ docker build -t math-mcp .
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | docker run -i --rm math-mcp
 
 # Run HTTP server (persistent mode)
-docker run -d -p 8000:8000 --name math-mcp-server \
+docker run -d -p 8008:8008 --name math-mcp-server \
   -e MCP_TRANSPORT=streamable-http \
   -e MCP_HOST=0.0.0.0 \
-  -e MCP_PORT=8000 \
+  -e MCP_PORT=8008 \
   math-mcp
 ```
 
@@ -88,7 +88,7 @@ docker build -t math-mcp .
 **Recommended for HTTP mode** - Simple one-command startup:
 
 ```bash
-# Start server with default configuration (port 8000)
+# Start server with default configuration (port 8008)
 docker-compose up -d
 
 # View logs
@@ -111,8 +111,8 @@ docker-compose down
 # Copy env.example to .env and customize
 MCP_TRANSPORT=streamable-http
 MCP_HOST=0.0.0.0
-MCP_PORT=8000
-MCP_HOST_PORT=8000
+MCP_PORT=8008
+MCP_HOST_PORT=8008
 MCP_PATH=/mcp
 ```
 
@@ -134,7 +134,7 @@ docker-compose up -d
 
 **Accessing from other containers:**
 ```bash
-# Server is accessible at: http://math-mcp-server:8000/mcp
+# Server is accessible at: http://math-mcp-server:8008/mcp
 # (or use the container name and your configured port)
 ```
 
@@ -143,11 +143,11 @@ docker-compose up -d
 For persistent hosting accessible from Docker networks and host applications:
 
 ```bash
-# Start persistent HTTP server (using default port 8000)
-docker run -d -p 8000:8000 --name math-mcp-server \
+# Start persistent HTTP server (using default port 8008)
+docker run -d -p 8008:8008 --name math-mcp-server \
   -e MCP_TRANSPORT=streamable-http \
   -e MCP_HOST=0.0.0.0 \
-  -e MCP_PORT=8000 \
+  -e MCP_PORT=8008 \
   -e MCP_PATH=/mcp \
   math-mcp
 
@@ -170,23 +170,23 @@ docker rm math-mcp-server
 ```
 
 **Configuration options:**
-- `MCP_TRANSPORT=streamable-http` - Enable HTTP transport (uses Server-Sent Events)
+- `MCP_TRANSPORT=streamable-http` - Enable Streamable HTTP transport (modern HTTP-based transport)
 - `MCP_HOST=0.0.0.0` - Bind to all interfaces (accessible from host and Docker network)
-- `MCP_PORT=<port>` - Port to listen on inside container (default: 8000). **Important:** Use `-p <host-port>:<container-port>` to map the port when running Docker, where `<container-port>` should match `MCP_PORT`
+- `MCP_PORT=<port>` - Port to listen on inside container (default: 8008). **Important:** Use `-p <host-port>:<container-port>` to map the port when running Docker, where `<container-port>` should match `MCP_PORT`
 - `MCP_PATH=/mcp` - HTTP endpoint path (default: /mcp)
 
-**Note:** The streamable-http transport uses Server-Sent Events (SSE) and requires session management. See [HTTP Transport Usage](#http-transport-usage) section below for complete examples.
+**Note:** The streamable-http transport uses Streamable HTTP (not pure SSE) and requires session management via the `mcp-session-id` header. See [HTTP Transport Usage](#http-transport-usage) section below for complete examples.
 
 **Port mapping examples:**
 ```bash
-# Container listens on 8000, map to host port 8000
-docker run -d -p 8000:8000 -e MCP_PORT=8000 ...
+# Container listens on 8008, map to host port 8008
+docker run -d -p 8008:8008 -e MCP_PORT=8008 ...
 
 # Container listens on 9000, map to host port 9000
 docker run -d -p 9000:9000 -e MCP_PORT=9000 ...
 
-# Container listens on 8000, map to different host port 3000
-docker run -d -p 3000:8000 -e MCP_PORT=8000 ...
+# Container listens on 8008, map to different host port 3000
+docker run -d -p 3000:8008 -e MCP_PORT=8008 ...
 ```
 
 **Docker network usage:**
@@ -194,11 +194,11 @@ docker run -d -p 3000:8000 -e MCP_PORT=8000 ...
 # Create a network
 docker network create math-network
 
-# Run server in network (port 8000)
+# Run server in network (port 8008)
 docker run -d --name math-mcp-server --network math-network \
   -e MCP_TRANSPORT=streamable-http \
   -e MCP_HOST=0.0.0.0 \
-  -e MCP_PORT=8000 \
+  -e MCP_PORT=8008 \
   math-mcp
 
 # Or use a custom port (e.g., 9000)
@@ -212,7 +212,44 @@ docker run -d --name math-mcp-server --network math-network \
 # http://math-mcp-server:<MCP_PORT>/mcp
 ```
 
-### Option 2: Local Python
+### Option 2: HTTP Endpoint (Web Server)
+
+If you're running the server as a web service (e.g., via `docker-compose up` or Docker with HTTP transport), configure Cursor to connect via HTTP.
+
+**Using mcp-remote (Recommended for compatibility):**
+
+```json
+{
+  "mcpServers": {
+    "math-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "http://localhost:8008/mcp",
+        "--transport",
+        "http-only",
+        "--allow-http"
+      ]
+    }
+  }
+}
+```
+
+**Important:** Use `--transport http-only` or `--transport http-first` with `mcp-remote` (not `sse-only`). FastMCP's `streamable_http_app` uses Streamable HTTP transport, which is incompatible with the deprecated SSE transport.
+
+**Note:** Some MCP clients may support direct URL configuration, but `mcp-remote` provides the most reliable cross-client compatibility.
+
+**Prerequisites:**
+- Server must be running and accessible at `http://localhost:8008/mcp`
+- Start the server first using one of these methods:
+  - `docker-compose up -d` (recommended)
+  - `docker run -d -p 8008:8008 ...` with HTTP transport enabled
+  - Local Python with `MCP_TRANSPORT=streamable-http`
+
+**Note:** If using a custom port, update the URL accordingly (e.g., `http://localhost:9000/mcp`).
+
+### Option 3: Local Python
 
 If you prefer running locally without Docker:
 
@@ -231,7 +268,58 @@ If you prefer running locally without Docker:
 
 ### Complete Example
 
-See [`mcp.json.example`](./mcp.json.example) for a complete example configuration file. You can copy it to `~/.cursor/mcp.json` and customize as needed.
+See example configuration files:
+- [`docs/mcp.json.example`](./docs/mcp.json.example) - Docker CLI configuration (default)
+- [`docs/mcp.json.http-example`](./docs/mcp.json.http-example) - HTTP endpoint configuration
+
+You can copy either to `~/.cursor/mcp.json` and customize as needed.
+
+## Add to Claude Desktop
+
+Add to your Claude Desktop MCP settings. The configuration file location varies by OS:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+### HTTP Endpoint (Web Server)
+
+If you're running the server as a web service (e.g., via `docker-compose up` or Docker with HTTP transport), configure Claude Desktop to connect via HTTP using `mcp-remote`:
+
+```json
+{
+  "mcpServers": {
+    "math-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "http://localhost:8008/mcp",
+        "--transport",
+        "http-only",
+        "--allow-http"
+      ]
+    }
+  }
+}
+```
+
+**Important:** 
+- Claude Desktop does **not** support direct URL configuration for remote MCP servers. You must use `mcp-remote` as a proxy.
+- FastMCP's `streamable_http_app` uses **Streamable HTTP** transport (not SSE). Use `--transport http-only` or `--transport http-first` with `mcp-remote`. The `sse-only` transport is deprecated and incompatible with FastMCP servers.
+
+**Prerequisites:**
+- Server must be running and accessible at `http://localhost:8008/mcp`
+- Start the server first using one of these methods:
+  - `docker-compose up -d` (recommended)
+  - `docker run -d -p 8008:8008 ...` with HTTP transport enabled
+  - Local Python with `MCP_TRANSPORT=streamable-http`
+
+**Note:** If using a custom port, update the URL accordingly (e.g., `http://localhost:9000/mcp`).
+
+**Example configuration file:**
+- [`docs/claude_desktop_config.json.example`](./docs/claude_desktop_config.json.example) - HTTP endpoint configuration for Claude Desktop
+
+After updating the configuration file, restart Claude Desktop for the changes to take effect.
 
 ### Adding to Existing Configuration
 
@@ -358,11 +446,11 @@ Each tool call requires the initialization sequence. Here are examples:
 When running in HTTP mode, the server exposes a REST endpoint using Server-Sent Events (SSE). First, start the server:
 
 ```bash
-# Using default port 8000
-docker run -d -p 8000:8000 --name math-mcp-server \
+# Using default port 8008
+docker run -d -p 8008:8008 --name math-mcp-server \
   -e MCP_TRANSPORT=streamable-http \
   -e MCP_HOST=0.0.0.0 \
-  -e MCP_PORT=8000 \
+  -e MCP_PORT=8008 \
   math-mcp
 
 # Or using a custom port (e.g., 9000)
@@ -381,7 +469,7 @@ docker run -d -p 9000:9000 --name math-mcp-server \
 
 ```bash
 # Step 1: Initialize and capture session ID
-RESPONSE=$(curl -s -X POST http://localhost:8000/mcp \
+RESPONSE=$(curl -s -X POST http://localhost:8008/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -D - \
@@ -391,7 +479,7 @@ RESPONSE=$(curl -s -X POST http://localhost:8000/mcp \
 SESSION_ID=$(echo "$RESPONSE" | grep -i "mcp-session-id" | cut -d' ' -f2 | tr -d '\r')
 
 # Step 2: Call tools using the session ID
-curl -X POST http://localhost:8000/mcp \
+curl -X POST http://localhost:8008/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "mcp-session-id: $SESSION_ID" \
@@ -406,7 +494,7 @@ curl -X POST http://localhost:8000/mcp \
 
 ```bash
 # Initialize
-RESPONSE=$(curl -s -X POST http://localhost:8000/mcp \
+RESPONSE=$(curl -s -X POST http://localhost:8008/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -D - \
@@ -415,21 +503,21 @@ RESPONSE=$(curl -s -X POST http://localhost:8000/mcp \
 SESSION_ID=$(echo "$RESPONSE" | grep -i "mcp-session-id" | cut -d' ' -f2 | tr -d '\r')
 
 # Simplify expression
-curl -X POST http://localhost:8000/mcp \
+curl -X POST http://localhost:8008/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "mcp-session-id: $SESSION_ID" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"simplify","arguments":{"expression":"sin(x)^2 + cos(x)^2"}}}'
 
 # Solve equation
-curl -X POST http://localhost:8000/mcp \
+curl -X POST http://localhost:8008/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "mcp-session-id: $SESSION_ID" \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"solve","arguments":{"equation":"x^2 - 4","variable":"x"}}}'
 
 # Evaluate expression
-curl -X POST http://localhost:8000/mcp \
+curl -X POST http://localhost:8008/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "mcp-session-id: $SESSION_ID" \
@@ -439,8 +527,8 @@ curl -X POST http://localhost:8000/mcp \
 **From other Docker containers:**
 ```bash
 # If running in a Docker network, use the container name and configured port
-# (replace 8000 with your MCP_PORT value)
-RESPONSE=$(curl -s -X POST http://math-mcp-server:8000/mcp \
+# (replace 8008 with your MCP_PORT value)
+RESPONSE=$(curl -s -X POST http://math-mcp-server:8008/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -D - \
@@ -448,7 +536,7 @@ RESPONSE=$(curl -s -X POST http://math-mcp-server:8000/mcp \
 
 SESSION_ID=$(echo "$RESPONSE" | grep -i "mcp-session-id" | cut -d' ' -f2 | tr -d '\r')
 
-curl -X POST http://math-mcp-server:8000/mcp \
+curl -X POST http://math-mcp-server:8008/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "mcp-session-id: $SESSION_ID" \
@@ -482,7 +570,7 @@ pip install -e ".[dev]"
 python -m math_mcp.server
 
 # Run in HTTP mode
-MCP_TRANSPORT=http MCP_HOST=127.0.0.1 MCP_PORT=8000 python -m math_mcp.server
+MCP_TRANSPORT=http MCP_HOST=127.0.0.1 MCP_PORT=8008 python -m math_mcp.server
 ```
 
 ## Testing
