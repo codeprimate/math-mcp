@@ -1,9 +1,16 @@
 """Tests for math_mcp tools."""
 
+import json
+import sys
+from pathlib import Path
+
 import pytest
 
-from math_mcp.server import (
-    tool_convert_unit,
+# Add src to path for imports (needed for src-layout packages)
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+from math_mcp.scipy_tools import tool_find_root, tool_solve_ode
+from math_mcp.sympy_tools import (
     tool_derivative,
     tool_evaluate,
     tool_expand,
@@ -15,6 +22,7 @@ from math_mcp.server import (
     tool_solve,
     tool_to_fraction,
 )
+from math_mcp.unit_tools import tool_convert_unit
 
 
 class TestSimplify:
@@ -155,3 +163,112 @@ class TestConvertUnit:
     def test_invalid_unit(self):
         result = tool_convert_unit(1.0, "invalid_unit", "meter")
         assert "Error" in result
+
+
+class TestSolveOde:
+    def test_simple_exponential_decay(self):
+        result = tool_solve_ode(
+            equations=["dx/dt = -x"],
+            initial_conditions={"x": 1.0},
+            time_span=[0.0, 5.0],
+            method="rk45",
+        )
+        data = json.loads(result)
+        assert data["success"] is True
+        assert "time" in data
+        assert "state" in data
+        assert "x" in data["state"]
+        # Check that x decreases (exponential decay)
+        assert data["state"]["x"][-1] < data["state"]["x"][0]
+
+    def test_coupled_system(self):
+        result = tool_solve_ode(
+            equations=["dx/dt = -x + y", "dy/dt = x - y"],
+            initial_conditions={"x": 1.0, "y": 0.0},
+            time_span=[0.0, 10.0],
+            method="rk45",
+        )
+        data = json.loads(result)
+        assert data["success"] is True
+        assert "x" in data["state"]
+        assert "y" in data["state"]
+        assert len(data["state"]["x"]) == len(data["state"]["y"])
+
+    def test_euler_method(self):
+        result = tool_solve_ode(
+            equations=["dx/dt = -0.5*x"],
+            initial_conditions={"x": 2.0},
+            time_span=[0.0, 5.0],
+            method="euler",
+        )
+        data = json.loads(result)
+        assert data["success"] is True
+        assert data["method"] == "euler"
+
+    def test_missing_initial_condition(self):
+        result = tool_solve_ode(
+            equations=["dx/dt = -x", "dy/dt = -y"],
+            initial_conditions={"x": 1.0},
+            time_span=[0.0, 5.0],
+        )
+        assert "Error" in result
+        assert "Missing initial conditions" in result
+
+
+class TestFindRoot:
+    def test_quadratic_with_bracket(self):
+        result = tool_find_root(
+            function="x^2 - 4",
+            initial_guess=1.0,
+            bracket=[0.0, 3.0],
+            method="brentq",
+        )
+        data = json.loads(result)
+        assert data["success"] is True
+        assert abs(data["root"] - 2.0) < 0.01
+        assert abs(data["function_value"]) < 1e-6
+
+    def test_sine_function(self):
+        result = tool_find_root(
+            function="sin(x) - 0.5",
+            initial_guess=0.5,
+            bracket=[0.0, 2.0],
+            method="bisection",
+        )
+        data = json.loads(result)
+        assert data["success"] is True
+        # sin(x) = 0.5 has solution x ≈ 0.524
+        assert 0.4 < data["root"] < 0.7
+        assert abs(data["function_value"]) < 1e-6
+
+    def test_newton_method(self):
+        result = tool_find_root(
+            function="x^2 - 4",
+            initial_guess=1.5,
+            method="newton",
+        )
+        data = json.loads(result)
+        assert data["success"] is True
+        assert abs(data["root"] - 2.0) < 0.1
+        assert data["method"] == "newton"
+
+    def test_auto_method_with_bracket(self):
+        result = tool_find_root(
+            function="x^3 - 8",
+            initial_guess=1.0,
+            bracket=[0.0, 3.0],
+            method="auto",
+        )
+        data = json.loads(result)
+        assert data["success"] is True
+        assert abs(data["root"] - 2.0) < 0.1
+
+    def test_invalid_bracket(self):
+        result = tool_find_root(
+            function="x^2 - 4",
+            initial_guess=1.0,
+            bracket=[1.0, 1.5],  # Both positive, no sign change
+            method="brentq",
+        )
+        assert "Error" in result
+        assert "opposite signs" in result

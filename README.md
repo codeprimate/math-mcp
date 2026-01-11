@@ -54,14 +54,16 @@ The server supports two transport modes:
 
 Add to your Cursor MCP settings (`~/.cursor/mcp.json`). This enables Cursor to use 8 powerful math tools for solving equations, computing derivatives/integrals, simplifying expressions, and more.
 
-**What this adds:** Symbolic mathematics server powered by SymPy with tools for:
-- Solving equations and finding roots
+**What this adds:** Symbolic and numerical mathematics server powered by SymPy and SciPy with tools for:
+- Solving equations and finding roots (symbolic and numerical)
 - Computing derivatives and integrals
 - Simplifying and manipulating algebraic expressions
 - Evaluating expressions numerically
 - Converting to LaTeX format
 - Converting decimals to fractions and simplifying fractions
 - Converting between measurement units (length, mass, time, temperature, etc.)
+- Solving differential equations numerically (ODEs)
+- Finding roots of functions numerically
 
 ### Option 1: Docker with stdio Transport (Recommended for Cursor)
 
@@ -354,20 +356,24 @@ Once configured and Cursor is restarted, you can ask math questions naturally:
 - **"Convert 0.5 to a fraction"** → Uses `to_fraction` tool
 - **"Simplify 6/8"** → Uses `simplify_fraction` tool
 - **"Convert 100 meters to kilometers"** → Uses `convert_unit` tool
+- **"Solve dx/dt = -x with x(0)=1 from t=0 to t=5"** → Uses `solve_ode` tool
+- **"Find the root of x^2 - 4 near x=1"** → Uses `find_root` tool
 
-Cursor automatically discovers all 11 tools and chooses the right one based on your question.
+Cursor automatically discovers all 13 tools and chooses the right one based on your question.
 
 ## Why Use This?
 
-This MCP server gives Cursor powerful symbolic math capabilities powered by SymPy. Instead of guessing at math or writing code, Cursor can:
+This MCP server gives Cursor powerful symbolic and numerical math capabilities powered by SymPy and SciPy. Instead of guessing at math or writing code, Cursor can:
 
-- **Solve equations** - Find roots, solve for variables, answer "what is x?" questions
+- **Solve equations** - Find roots, solve for variables, answer "what is x?" questions (symbolic and numerical)
 - **Do calculus** - Compute derivatives and integrals symbolically
 - **Simplify expressions** - Reduce complex math to simplest form
 - **Evaluate numerically** - Get concrete answers from symbolic expressions
 - **Format math** - Convert to LaTeX for documentation
+- **Solve differential equations** - Numerically integrate ODEs and systems of ODEs
+- **Find roots numerically** - When symbolic methods fail or are too slow
 
-Perfect for code that involves math, physics simulations, data analysis, or any task requiring mathematical computation.
+Perfect for code that involves math, physics simulations, data analysis, engineering problems, or any task requiring mathematical computation.
 
 ## Tools
 
@@ -384,6 +390,8 @@ Perfect for code that involves math, physics simulations, data analysis, or any 
 | `to_fraction` | Convert decimal to fraction | Get exact rational representation |
 | `simplify_fraction` | Simplify fraction | Reduce fractions to lowest terms |
 | `convert_unit` | Convert units | Convert between measurement units |
+| `solve_ode` | Solve ODEs numerically | Systems of differential equations, time-dependent problems |
+| `find_root` | Find root numerically | When symbolic solve fails, finding zeros of functions |
 
 ## Examples
 
@@ -436,6 +444,18 @@ Each tool call requires the initialization sequence. Here are examples:
 (echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
  echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
  echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"convert_unit","arguments":{"value":100,"from_unit":"meter","to_unit":"kilometer"}}}') | \
+ docker run -i --rm math-mcp
+
+# Solve ODE: dx/dt = -x with x(0)=1 from t=0 to t=5
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+ echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"solve_ode","arguments":{"equations":["dx/dt = -x"],"initial_conditions":{"x":1.0},"time_span":[0.0,5.0],"method":"rk45"}}}') | \
+ docker run -i --rm math-mcp
+
+# Find root of x^2 - 4 = 0 near x=1
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+ echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"find_root","arguments":{"function":"x^2 - 4","initial_guess":1.0,"bracket":[0.0,3.0],"method":"brentq"}}}') | \
  docker run -i --rm math-mcp
 ```
 
