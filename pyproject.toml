@@ -1,0 +1,26 @@
+[project]
+name = "math-mcp"
+version = "0.1.0"
+description = "MCP server for symbolic mathematics using SymPy"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "sympy>=1.12",
+    "mcp[cli]>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[project.scripts]
+math-mcp = "math_mcp.server:main"
