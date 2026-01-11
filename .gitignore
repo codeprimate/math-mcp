@@ -84,3 +84,4 @@ Thumbs.db
 
 # Local development
 *.log
+tests/outputs/

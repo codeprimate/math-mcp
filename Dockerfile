@@ -4,7 +4,21 @@ FROM python:3.12-alpine AS builder
 WORKDIR /app
 
 # Install build dependencies only for building (removed in final stage)
-RUN apk add --no-cache gcc musl-dev python3-dev
+RUN apk add --no-cache \
+    gcc \
+    g++ \
+    musl-dev \
+    linux-headers \
+    freetype-dev \
+    libpng-dev \
+    python3-dev \
+    py3-setuptools \
+    libffi-dev \
+    meson \
+    ninja \
+    libstdc++ \
+    freetype \
+    libpng
 
 # Copy and install Python dependencies
 COPY requirements.txt .
@@ -14,6 +28,12 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 FROM python:3.12-alpine
 
 WORKDIR /app
+
+# Install runtime dependencies for matplotlib
+RUN apk add --no-cache \
+    libstdc++ \
+    freetype \
+    libpng
 
 # Copy only installed packages from builder
 COPY --from=builder /root/.local /root/.local

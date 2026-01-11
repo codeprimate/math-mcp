@@ -2,7 +2,7 @@
 
 from mcp.server.fastmcp import FastMCP
 
-from math_mcp import scipy_tools, sympy_tools, unit_tools
+from math_mcp import plotting_tools, scipy_tools, sympy_tools, unit_tools
 
 mcp = FastMCP("Math")
 
@@ -10,6 +10,7 @@ mcp = FastMCP("Math")
 sympy_tools.register_sympy_tools(mcp)
 unit_tools.register_unit_tools(mcp)
 scipy_tools.register_scipy_tools(mcp)
+plotting_tools.register_plotting_tools(mcp)
 
 
 def main():

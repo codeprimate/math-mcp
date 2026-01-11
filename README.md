@@ -64,6 +64,7 @@ Add to your Cursor MCP settings (`~/.cursor/mcp.json`). This enables Cursor to u
 - Converting between measurement units (length, mass, time, temperature, etc.)
 - Solving differential equations numerically (ODEs)
 - Finding roots of functions numerically
+- Plotting and visualizing data (time series, bar charts, histograms, scatter plots, heatmaps, stacked bars)
 
 ### Option 1: Docker with stdio Transport (Recommended for Cursor)
 
@@ -358,8 +359,11 @@ Once configured and Cursor is restarted, you can ask math questions naturally:
 - **"Convert 100 meters to kilometers"** → Uses `convert_unit` tool
 - **"Solve dx/dt = -x with x(0)=1 from t=0 to t=5"** → Uses `solve_ode` tool
 - **"Find the root of x^2 - 4 near x=1"** → Uses `find_root` tool
+- **"Plot this time series data"** → Uses `plot_timeseries` tool
+- **"Create a bar chart of these categories"** → Uses `plot_bar_chart` tool
+- **"Show me a histogram of these values"** → Uses `plot_histogram` tool
 
-Cursor automatically discovers all 13 tools and chooses the right one based on your question.
+Cursor automatically discovers all 20 tools and chooses the right one based on your question.
 
 ## Why Use This?
 
@@ -372,6 +376,7 @@ This MCP server gives Cursor powerful symbolic and numerical math capabilities p
 - **Format math** - Convert to LaTeX for documentation
 - **Solve differential equations** - Numerically integrate ODEs and systems of ODEs
 - **Find roots numerically** - When symbolic methods fail or are too slow
+- **Visualize data** - Create plots for operational data, time series, distributions, correlations
 
 Perfect for code that involves math, physics simulations, data analysis, engineering problems, or any task requiring mathematical computation.
 
@@ -392,6 +397,86 @@ Perfect for code that involves math, physics simulations, data analysis, enginee
 | `convert_unit` | Convert units | Convert between measurement units |
 | `solve_ode` | Solve ODEs numerically | Systems of differential equations, time-dependent problems |
 | `find_root` | Find root numerically | When symbolic solve fails, finding zeros of functions |
+| `plot_timeseries` | Plot time-series data | Visualize metrics over time, trends, multiple series |
+| `plot_bar_chart` | Create bar charts | Compare categorical data, usage statistics |
+| `plot_histogram` | Create histograms | Data distribution, frequency analysis |
+| `plot_scatter` | Create scatter plots | Correlation analysis, relationship between variables |
+| `plot_heatmap` | Create heatmaps | 2D patterns, time-based or geographic data |
+| `plot_stacked_bar` | Create stacked bar charts | Multi-series comparison across categories |
+| `plot_ode_solution` | Plot ODE solutions | Visualize differential equation results |
+
+## Plotting & Visualization
+
+The Math MCP server includes powerful plotting tools for data visualization. All plots are returned as inline images that appear directly in your conversation.
+
+### Available Plot Types
+
+**1. Time Series (`plot_timeseries`)**
+- Plot metrics over time with multiple series
+- Perfect for: response times, traffic patterns, error rates
+- Example: `timestamps=['2026-01-01T10:00', '2026-01-01T11:00'], series={'cpu': [45, 67], 'memory': [60, 62]}`
+
+**2. Bar Charts (`plot_bar_chart`)**
+- Compare values across categories
+- Perfect for: endpoint usage, error counts by type, feature adoption
+- Supports both vertical and horizontal orientations
+- Example: `categories=['Endpoint A', 'Endpoint B'], values=[1250, 890]`
+
+**3. Histograms (`plot_histogram`)**
+- Visualize data distribution and frequency
+- Perfect for: response time distributions, latency analysis
+- Includes automatic statistics (mean, median, std dev)
+- Example: `data=[120, 145, 167, 123, 189, ...]`
+
+**4. Scatter Plots (`plot_scatter`)**
+- Show correlation between two variables
+- Perfect for: traffic vs errors, cache hit rate vs response time
+- Displays correlation coefficient
+- Optional point labels
+- Example: `x_data=[100, 200, 300], y_data=[0.02, 0.05, 0.03]`
+
+**5. Heatmaps (`plot_heatmap`)**
+- Visualize 2D patterns
+- Perfect for: request patterns by hour/day, geographic distribution, error hotspots
+- Customizable colormaps
+- Example: `data=[[10, 20], [30, 40]], x_labels=['Mon', 'Tue'], y_labels=['Morning', 'Evening']`
+
+**6. Stacked Bar Charts (`plot_stacked_bar`)**
+- Compare multiple series across categories
+- Perfect for: status code breakdown, multi-environment comparison
+- Supports both vertical and horizontal orientations
+- Example: `categories=['Jan', 'Feb'], series={'success': [100, 120], 'error': [10, 8]}`
+
+**7. ODE Solution Plots (`plot_ode_solution`)**
+- Visualize differential equation solutions
+- Automatically plots all variables from `solve_ode` output
+- Example: `ode_result='{"t": [0, 1, 2], "x": [1, 0.5, 0.25], ...}'`
+
+### Integration with ODE Solver
+
+You can solve differential equations and immediately visualize the results:
+
+```bash
+# 1. Solve ODE
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+ echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"solve_ode","arguments":{"equations":["dx/dt = -x"],"initial_conditions":{"x":1.0},"time_span":[0.0,5.0]}}}') | \
+ docker run -i --rm math-mcp
+
+# 2. Plot the solution (pass the JSON result from step 1)
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+ echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_ode_solution","arguments":{"ode_result":"<paste result here>"}}}') | \
+ docker run -i --rm math-mcp
+```
+
+### Features
+
+- **In-memory only**: No disk I/O, all images generated in memory
+- **Automatic display**: Images appear inline in Cursor/Claude conversations
+- **Consistent styling**: Professional appearance with grid lines, labels, and legends
+- **Memory efficient**: Figures are immediately closed after saving
+- **IT-focused**: Designed for operational data visualization
 
 ## Examples
 
@@ -415,6 +500,24 @@ Expected response includes initialization result, then tool result:
 ```json
 {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{...},"serverInfo":{"name":"Math","version":"1.25.0"}}}
 {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"1"}]}}
+```
+
+#### List Available Tools
+
+To see all available tools, use the `tools/list` method:
+
+```bash
+# List all available tools
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+ echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+ echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}') | \
+ docker run -i --rm math-mcp
+```
+
+Expected response includes a list of all available tools with their descriptions:
+```json
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{...},"serverInfo":{"name":"Math","version":"1.25.0"}}}
+{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"simplify","description":"Simplify a mathematical expression...","inputSchema":{...}},{"name":"solve","description":"Solve an equation for a variable...","inputSchema":{...}},...]}}
 ```
 
 #### Example Tool Calls
