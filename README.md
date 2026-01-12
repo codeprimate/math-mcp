@@ -2,73 +2,19 @@
 
 Powerful symbolic mathematics for Cursor AI. Solve equations, compute derivatives and integrals, simplify expressions, and more—all through natural language requests. Powered by SymPy.
 
-## Quick Start with Docker
+## Quick Start
 
-### Option 1: Docker Compose (Recommended for HTTP Mode)
+Get up and running with Math MCP in Cursor or Claude Desktop using Docker stdio (recommended).
 
-The easiest way to run the HTTP server:
-
-```bash
-# Start the server (uses docker-compose.yml)
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop the server
-docker-compose down
-
-# Customize configuration (optional)
-# 1. Copy .env.example to .env and edit
-# 2. Or edit docker-compose.yml directly
-# 3. Or use docker-compose.override.yml for local overrides
-```
-
-**Configuration via environment variables:**
-- Create a `.env` file or set environment variables
-- See `docker-compose.yml` for all available options
-- Default: HTTP server on port 8008, accessible from host and Docker network
-
-### Option 2: Docker CLI
+### Step 1: Build the Docker Image
 
 ```bash
-# Build
 docker build -t math-mcp .
-
-# Test (stdio mode - for CLI usage)
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | docker run -i --rm math-mcp
-
-# Run HTTP server (persistent mode)
-docker run -d -p 8008:8008 --name math-mcp-server \
-  -e MCP_TRANSPORT=streamable-http \
-  -e MCP_HOST=0.0.0.0 \
-  -e MCP_PORT=8008 \
-  math-mcp
 ```
 
-The server supports two transport modes:
-- **stdio** (default): For CLI usage and Cursor integration via Docker
-- **streamable-http**: For persistent hosting accessible via HTTP from Docker networks and host applications (uses Server-Sent Events)
+### Step 2: Configure Cursor
 
-## Add to Cursor
-
-Add to your Cursor MCP settings (`~/.cursor/mcp.json`). This enables Cursor to use 8 powerful math tools for solving equations, computing derivatives/integrals, simplifying expressions, and more.
-
-**What this adds:** Symbolic and numerical mathematics server powered by SymPy and SciPy with tools for:
-- Solving equations and finding roots (symbolic and numerical)
-- Computing derivatives and integrals
-- Simplifying and manipulating algebraic expressions
-- Evaluating expressions numerically
-- Converting to LaTeX format
-- Converting decimals to fractions and simplifying fractions
-- Converting between measurement units (length, mass, time, temperature, etc.)
-- Solving differential equations numerically (ODEs)
-- Finding roots of functions numerically
-- Plotting and visualizing data (time series, bar charts, histograms, scatter plots, heatmaps, stacked bars)
-
-### Option 1: Docker with stdio Transport (Recommended for Cursor)
-
-This mode runs the server via Docker CLI, perfect for Cursor integration:
+Add to your Cursor MCP settings (`~/.cursor/mcp.json`):
 
 ```json
 {
@@ -81,33 +27,110 @@ This mode runs the server via Docker CLI, perfect for Cursor integration:
 }
 ```
 
-**Note:** Make sure you've built the Docker image first:
+**If you already have other MCP servers configured**, just add `"math-mcp"` to your existing `mcpServers` object:
+
+```json
+{
+  "mcpServers": {
+    "your-existing-server": {
+      "command": "...",
+      "args": [...]
+    },
+    "math-mcp": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "math-mcp"]
+    }
+  }
+}
+```
+
+**Restart Cursor** for the changes to take effect.
+
+### Step 3: Configure Claude Desktop
+
+Add to your Claude Desktop MCP settings. The configuration file location varies by OS:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "math-mcp": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "math-mcp"]
+    }
+  }
+}
+```
+
+**Restart Claude Desktop** for the changes to take effect.
+
+### That's It!
+
+Once configured, you can ask math questions naturally in Cursor or Claude:
+- **"Solve x^2 - 4 = 0"** → Finds roots
+- **"What's the derivative of x^3?"** → Computes derivative
+- **"Simplify sin(x)^2 + cos(x)^2"** → Simplifies expression
+- **"Convert 100 meters to kilometers"** → Converts units
+- **"Plot this time series data"** → Creates visualizations
+
+See [What This Enables](#what-this-enables) for more examples.
+
+---
+
+## Running the Server
+
+The server supports two transport modes:
+- **stdio** (default): For CLI usage and Cursor/Claude Desktop integration via Docker
+- **streamable-http**: For persistent hosting accessible via HTTP from Docker networks and host applications
+
+### CLI & Docker CLI (stdio mode)
+
+Perfect for command-line usage and Cursor/Claude Desktop integration.
+
+#### Build the Docker Image
+
 ```bash
 docker build -t math-mcp .
 ```
 
-### Option 1a: Docker Compose (Easiest for HTTP Mode)
-
-**Recommended for HTTP mode** - Simple one-command startup:
+#### Test the Server
 
 ```bash
-# Start server with default configuration (port 8008)
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | docker run -i --rm math-mcp
+```
+
+#### Local Python (Alternative to Docker)
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+python -m math_mcp.server
+```
+
+### HTTP Mode
+
+For persistent hosting accessible from Docker networks and host applications.
+
+#### Option 1: Docker Compose (Recommended)
+
+```bash
+# Start the server (uses docker-compose.yml)
 docker-compose up -d
 
 # View logs
-docker-compose logs -f math-mcp
+docker-compose logs -f
 
-# Stop server
+# Stop the server
 docker-compose down
-
-# Customize port (edit docker-compose.yml or use .env file)
-# Set MCP_HOST_PORT=9000 to use port 9000 on host
 ```
 
 **Configuration:**
-- Edit `docker-compose.yml` directly, or
-- Create `.env` file with your settings (see `docker-compose.yml` for variable names), or
-- Use `docker-compose.override.yml` for local overrides (git-ignored)
+- Create a `.env` file or set environment variables
+- See `docker-compose.yml` for all available options
+- Default: HTTP server on port 8008, accessible from host and Docker network
 
 **Example .env file:**
 ```bash
@@ -119,31 +142,13 @@ MCP_HOST_PORT=8008
 MCP_PATH=/mcp
 ```
 
-**Quick examples:**
-```bash
-# Use custom port 9000
-echo "MCP_HOST_PORT=9000" > .env
-docker-compose up -d
-
-# Use stdio mode (disable healthcheck, remove port mapping)
-# Option 1: Set in .env file
-echo "MCP_TRANSPORT=stdio" >> .env
-echo "DISABLE_HEALTHCHECK=true" >> .env
-# Then edit docker-compose.yml to comment out the ports section
-docker-compose up -d
-
-# Option 2: Use docker-compose.override.yml (see docker-compose.override.yml.example)
-```
-
 **Accessing from other containers:**
 ```bash
 # Server is accessible at: http://math-mcp-server:8008/mcp
 # (or use the container name and your configured port)
 ```
 
-### Option 1b: Docker with HTTP Transport (For Persistent Hosting)
-
-For persistent hosting accessible from Docker networks and host applications:
+#### Option 2: Docker CLI
 
 ```bash
 # Start persistent HTTP server (using default port 8008)
@@ -178,8 +183,6 @@ docker rm math-mcp-server
 - `MCP_PORT=<port>` - Port to listen on inside container (default: 8008). **Important:** Use `-p <host-port>:<container-port>` to map the port when running Docker, where `<container-port>` should match `MCP_PORT`
 - `MCP_PATH=/mcp` - HTTP endpoint path (default: /mcp)
 
-**Note:** The streamable-http transport uses Streamable HTTP (not pure SSE) and requires session management via the `mcp-session-id` header. See [HTTP Transport Usage](#http-transport-usage) section below for complete examples.
-
 **Port mapping examples:**
 ```bash
 # Container listens on 8008, map to host port 8008
@@ -197,62 +200,59 @@ docker run -d -p 3000:8008 -e MCP_PORT=8008 ...
 # Create a network
 docker network create math-network
 
-# Run server in network (port 8008)
+# Run server in network
 docker run -d --name math-mcp-server --network math-network \
   -e MCP_TRANSPORT=streamable-http \
   -e MCP_HOST=0.0.0.0 \
   -e MCP_PORT=8008 \
   math-mcp
 
-# Or use a custom port (e.g., 9000)
-docker run -d --name math-mcp-server --network math-network \
-  -e MCP_TRANSPORT=streamable-http \
-  -e MCP_HOST=0.0.0.0 \
-  -e MCP_PORT=9000 \
-  math-mcp
-
 # Other containers in the same network can access:
 # http://math-mcp-server:<MCP_PORT>/mcp
 ```
 
-### Option 2: HTTP Endpoint (Web Server)
+#### Option 3: Local Python
 
-If you're running the server as a web service (e.g., via `docker-compose up` or Docker with HTTP transport), configure Cursor to connect via HTTP.
+```bash
+MCP_TRANSPORT=streamable-http MCP_HOST=127.0.0.1 MCP_PORT=8008 python -m math_mcp.server
+```
 
-**Using mcp-remote (Recommended for compatibility):**
+## Add to Cursor
+
+Add to your Cursor MCP settings (`~/.cursor/mcp.json`). This enables Cursor to use 20 powerful math tools for solving equations, computing derivatives/integrals, simplifying expressions, plotting data, and more.
+
+**What this adds:** Symbolic and numerical mathematics server powered by SymPy and SciPy with tools for:
+- Solving equations and finding roots (symbolic and numerical)
+- Computing derivatives and integrals
+- Simplifying and manipulating algebraic expressions
+- Evaluating expressions numerically
+- Converting to LaTeX format
+- Converting decimals to fractions and simplifying fractions
+- Converting between measurement units (length, mass, time, temperature, etc.)
+- Solving differential equations numerically (ODEs)
+- Finding roots of functions numerically
+- Plotting and visualizing data (time series, bar charts, histograms, scatter plots, heatmaps, stacked bars)
+
+### CLI/Docker CLI Configuration (Recommended for Cursor)
+
+This mode runs the server via Docker CLI, perfect for Cursor integration:
 
 ```json
 {
   "mcpServers": {
     "math-mcp": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "http://localhost:8008/mcp",
-        "--transport",
-        "http-only",
-        "--allow-http"
-      ]
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "math-mcp"]
     }
   }
 }
 ```
 
-**Important:** Use `--transport http-only` or `--transport http-first` with `mcp-remote` (not `sse-only`). FastMCP's `streamable_http_app` uses Streamable HTTP transport, which is incompatible with the deprecated SSE transport.
+**Note:** 
+- Make sure you've built the Docker image first: `docker build -t math-mcp .`
+- **Initialization is automatic**: Cursor automatically handles the MCP protocol initialization handshake. You don't need to do anything manually.
 
-**Note:** Some MCP clients may support direct URL configuration, but `mcp-remote` provides the most reliable cross-client compatibility.
-
-**Prerequisites:**
-- Server must be running and accessible at `http://localhost:8008/mcp`
-- Start the server first using one of these methods:
-  - `docker-compose up -d` (recommended)
-  - `docker run -d -p 8008:8008 ...` with HTTP transport enabled
-  - Local Python with `MCP_TRANSPORT=streamable-http`
-
-**Note:** If using a custom port, update the URL accordingly (e.g., `http://localhost:9000/mcp`).
-
-### Option 3: Local Python
+### Local Python Configuration
 
 If you prefer running locally without Docker:
 
@@ -271,58 +271,10 @@ If you prefer running locally without Docker:
 
 ### Complete Example
 
-See example configuration files:
-- [`docs/mcp.json.example`](./docs/mcp.json.example) - Docker CLI configuration (default)
-- [`docs/mcp.json.http-example`](./docs/mcp.json.http-example) - HTTP endpoint configuration
+See example configuration file:
+- [`docs/mcp.json.example`](./docs/mcp.json.example) - Docker CLI configuration
 
-You can copy either to `~/.cursor/mcp.json` and customize as needed.
-
-## Add to Claude Desktop
-
-Add to your Claude Desktop MCP settings. The configuration file location varies by OS:
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-- **Linux**: `~/.config/Claude/claude_desktop_config.json`
-
-### HTTP Endpoint (Web Server)
-
-If you're running the server as a web service (e.g., via `docker-compose up` or Docker with HTTP transport), configure Claude Desktop to connect via HTTP using `mcp-remote`:
-
-```json
-{
-  "mcpServers": {
-    "math-mcp": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "http://localhost:8008/mcp",
-        "--transport",
-        "http-only",
-        "--allow-http"
-      ]
-    }
-  }
-}
-```
-
-**Important:** 
-- Claude Desktop does **not** support direct URL configuration for remote MCP servers. You must use `mcp-remote` as a proxy.
-- FastMCP's `streamable_http_app` uses **Streamable HTTP** transport (not SSE). Use `--transport http-only` or `--transport http-first` with `mcp-remote`. The `sse-only` transport is deprecated and incompatible with FastMCP servers.
-
-**Prerequisites:**
-- Server must be running and accessible at `http://localhost:8008/mcp`
-- Start the server first using one of these methods:
-  - `docker-compose up -d` (recommended)
-  - `docker run -d -p 8008:8008 ...` with HTTP transport enabled
-  - Local Python with `MCP_TRANSPORT=streamable-http`
-
-**Note:** If using a custom port, update the URL accordingly (e.g., `http://localhost:9000/mcp`).
-
-**Example configuration file:**
-- [`docs/claude_desktop_config.json.example`](./docs/claude_desktop_config.json.example) - HTTP endpoint configuration for Claude Desktop
-
-After updating the configuration file, restart Claude Desktop for the changes to take effect.
+You can copy it to `~/.cursor/mcp.json` and customize as needed.
 
 ### Adding to Existing Configuration
 
@@ -343,7 +295,33 @@ If you already have other MCP servers configured, just add `"math-mcp"` to your 
 }
 ```
 
-### What This Enables
+## Add to Claude Desktop
+
+Add to your Claude Desktop MCP settings. The configuration file location varies by OS:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+### Configuration
+
+```json
+{
+  "mcpServers": {
+    "math-mcp": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "math-mcp"]
+    }
+  }
+}
+```
+
+**Note:** 
+- Make sure you've built the Docker image first: `docker build -t math-mcp .`
+- **Initialization is automatic**: Claude Desktop automatically handles the MCP protocol initialization handshake. You don't need to do anything manually.
+
+After updating the configuration file, restart Claude Desktop for the changes to take effect.
+
+## What This Enables
 
 Once configured and Cursor is restarted, you can ask math questions naturally:
 
@@ -480,9 +458,13 @@ You can solve differential equations and immediately visualize the results:
 
 ## Examples
 
-### Command Line Usage
+### CLI & Docker CLI Usage
 
-The MCP server communicates via JSON-RPC over stdio. You must initialize the server before calling tools.
+The MCP server communicates via JSON-RPC over stdio. 
+
+**Note:** When using with Cursor or Claude Desktop, initialization is handled automatically by the client. The examples below are for **manual CLI/testing** scenarios where you're directly sending JSON-RPC messages to the server.
+
+For manual usage, you must initialize the server before calling tools.
 
 #### Proper Initialization Sequence
 
@@ -564,31 +546,31 @@ Each tool call requires the initialization sequence. Here are examples:
 
 **Note:** For local Python usage, replace `docker run -i --rm math-mcp` with `python -m math_mcp.server`.
 
-#### HTTP Transport Usage
+#### Interactive Session with Multiple Requests
 
-When running in HTTP mode, the server exposes a REST endpoint using Server-Sent Events (SSE). First, start the server:
+For multiple tool calls, send the full initialization sequence followed by your requests:
 
 ```bash
-# Using default port 8008
-docker run -d -p 8008:8008 --name math-mcp-server \
-  -e MCP_TRANSPORT=streamable-http \
-  -e MCP_HOST=0.0.0.0 \
-  -e MCP_PORT=8008 \
-  math-mcp
+cat > requests.jsonl << 'EOF'
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"simplify","arguments":{"expression":"x + x"}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"solve","arguments":{"equation":"x^2 - 9","variable":"x"}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"derivative","arguments":{"expression":"x^3","variable":"x"}}}
+EOF
 
-# Or using a custom port (e.g., 9000)
-docker run -d -p 9000:9000 --name math-mcp-server \
-  -e MCP_TRANSPORT=streamable-http \
-  -e MCP_HOST=0.0.0.0 \
-  -e MCP_PORT=9000 \
-  math-mcp
+cat requests.jsonl | docker run -i --rm math-mcp
 ```
 
-**Important:** The streamable-http transport requires:
-- `Accept: application/json, text/event-stream` header (for SSE)
-- Session ID management (extract from initialization response)
+### HTTP Usage
 
-**Example: Initialize and call tools via HTTP**
+When running in HTTP mode, the server exposes a REST endpoint using Streamable HTTP transport. First, start the server (see [HTTP Mode](#http-mode) section above).
+
+**Important:** The streamable-http transport requires:
+- `Accept: application/json, text/event-stream` header
+- Session ID management via `mcp-session-id` header (extract from initialization response)
+
+#### Initialize and Call Tools via HTTP
 
 ```bash
 # Step 1: Initialize and capture session ID
@@ -608,12 +590,12 @@ curl -X POST http://localhost:8008/mcp \
   -H "mcp-session-id: $SESSION_ID" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"simplify","arguments":{"expression":"sin(x)^2 + cos(x)^2"}}}'
 
-# Expected response (SSE format):
+# Expected response (Streamable HTTP format):
 # event: message
 # data: {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"1"}],...}}
 ```
 
-**Complete example with multiple tool calls:**
+#### Complete Example with Multiple Tool Calls
 
 ```bash
 # Initialize
@@ -647,7 +629,8 @@ curl -X POST http://localhost:8008/mcp \
   -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"evaluate","arguments":{"expression":"2*pi"}}}'
 ```
 
-**From other Docker containers:**
+#### From Other Docker Containers
+
 ```bash
 # If running in a Docker network, use the container name and configured port
 # (replace 8008 with your MCP_PORT value)
@@ -666,22 +649,6 @@ curl -X POST http://math-mcp-server:8008/mcp \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"simplify","arguments":{"expression":"x + x"}}}'
 ```
 
-#### Interactive Session with Multiple Requests
-
-For multiple tool calls, send the full initialization sequence followed by your requests:
-
-```bash
-cat > requests.jsonl << 'EOF'
-{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}
-{"jsonrpc":"2.0","method":"notifications/initialized"}
-{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"simplify","arguments":{"expression":"x + x"}}}
-{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"solve","arguments":{"equation":"x^2 - 9","variable":"x"}}}
-{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"derivative","arguments":{"expression":"x^3","variable":"x"}}}
-EOF
-
-cat requests.jsonl | docker run -i --rm math-mcp
-```
-
 ## Local Development
 
 ```bash
@@ -693,7 +660,7 @@ pip install -e ".[dev]"
 python -m math_mcp.server
 
 # Run in HTTP mode
-MCP_TRANSPORT=http MCP_HOST=127.0.0.1 MCP_PORT=8008 python -m math_mcp.server
+MCP_TRANSPORT=streamable-http MCP_HOST=127.0.0.1 MCP_PORT=8008 python -m math_mcp.server
 ```
 
 ## Testing
