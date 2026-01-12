@@ -672,6 +672,12 @@ PYTHONPATH=src pytest tests/ -v
 
 See [docs/TESTING.md](./docs/TESTING.md) for details.
 
+## License
+
+This project is licensed under the MIT License. See [LICENSE](./LICENSE) for details.
+
+Copyright (c) 2026 codeprimate
+
 ## Docs
 
 - [AGENT.md](./AGENT.md) — Usage guide for AI agents
