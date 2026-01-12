@@ -1,6 +1,61 @@
 # Math MCP Server
 
-Powerful symbolic mathematics for Cursor AI. Solve equations, compute derivatives and integrals, simplify expressions, and more—all through natural language requests. Powered by SymPy.
+Powerful symbolic mathematics for Cursor AI and Claude Desktop. Solve equations, compute derivatives and integrals, simplify expressions, and more—all through natural language requests. Powered by SymPy and SciPy.
+
+## What This Does
+
+The Math MCP server provides Cursor and Claude Desktop with powerful symbolic and numerical math capabilities. Instead of guessing at math or writing code, you can ask natural language questions and get accurate mathematical results.
+
+### Available Tools
+
+The server provides 20 tools for mathematical computation:
+
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| `simplify` | Simplify expression | Reduce complex expressions, verify identities |
+| `solve` | Solve equation for variable | Find roots, solve for unknowns |
+| `derivative` | Compute derivative | Calculus, optimization, rate of change |
+| `integral` | Compute integral | Antiderivatives, areas, integration problems |
+| `expand` | Expand expression | Multiply out parentheses, distribute terms |
+| `factor` | Factor expression | Factor polynomials, find roots by factoring |
+| `evaluate` | Evaluate numerically | Get numeric answers, check solutions |
+| `latex` | Convert to LaTeX | Format math for documentation |
+| `to_fraction` | Convert decimal to fraction | Get exact rational representation |
+| `simplify_fraction` | Simplify fraction | Reduce fractions to lowest terms |
+| `convert_unit` | Convert units | Convert between measurement units |
+| `solve_ode` | Solve ODEs numerically | Systems of differential equations, time-dependent problems |
+| `find_root` | Find root numerically | When symbolic solve fails, finding zeros of functions |
+| `plot_timeseries` | Plot time-series data | Visualize metrics over time, trends, multiple series |
+| `plot_bar_chart` | Create bar charts | Compare categorical data, usage statistics |
+| `plot_histogram` | Create histograms | Data distribution, frequency analysis |
+| `plot_scatter` | Create scatter plots | Correlation analysis, relationship between variables |
+| `plot_heatmap` | Create heatmaps | 2D patterns, time-based or geographic data |
+| `plot_stacked_bar` | Create stacked bar charts | Multi-series comparison across categories |
+| `plot_ode_solution` | Plot ODE solutions | Visualize differential equation results |
+
+### Example Usage
+
+Once configured, you can ask math questions naturally:
+
+- **"Solve x^2 - 4 = 0"** → Finds roots using `solve` tool
+- **"What's the derivative of x^3?"** → Computes derivative using `derivative` tool
+- **"Simplify sin(x)^2 + cos(x)^2"** → Simplifies expression using `simplify` tool
+- **"Evaluate 2*pi"** → Evaluates numerically using `evaluate` tool
+- **"Factor x^2 - 4"** → Factors expression using `factor` tool
+- **"Integrate x^2"** → Computes integral using `integral` tool
+- **"Convert x^2 + 1/2 to LaTeX"** → Converts to LaTeX using `latex` tool
+- **"Convert 0.5 to a fraction"** → Converts decimal using `to_fraction` tool
+- **"Simplify 6/8"** → Simplifies fraction using `simplify_fraction` tool
+- **"Convert 100 meters to kilometers"** → Converts units using `convert_unit` tool
+- **"Solve dx/dt = -x with x(0)=1 from t=0 to t=5"** → Solves ODE using `solve_ode` tool
+- **"Find the root of x^2 - 4 near x=1"** → Finds root using `find_root` tool
+- **"Plot this time series data"** → Creates visualization using `plot_timeseries` tool
+- **"Create a bar chart of these categories"** → Creates chart using `plot_bar_chart` tool
+- **"Show me a histogram of these values"** → Creates histogram using `plot_histogram` tool
+
+Cursor and Claude Desktop automatically discover all tools and choose the right one based on your question.
+
+Perfect for code that involves math, physics simulations, data analysis, engineering problems, or any task requiring mathematical computation.
 
 ## Quick Start
 
@@ -68,14 +123,7 @@ Add to your Claude Desktop MCP settings. The configuration file location varies 
 
 ### That's It!
 
-Once configured, you can ask math questions naturally in Cursor or Claude:
-- **"Solve x^2 - 4 = 0"** → Finds roots
-- **"What's the derivative of x^3?"** → Computes derivative
-- **"Simplify sin(x)^2 + cos(x)^2"** → Simplifies expression
-- **"Convert 100 meters to kilometers"** → Converts units
-- **"Plot this time series data"** → Creates visualizations
-
-See [What This Enables](#what-this-enables) for more examples.
+Once configured, you can ask math questions naturally in Cursor or Claude. See [Example Usage](#example-usage) above for examples.
 
 ---
 
@@ -219,19 +267,7 @@ MCP_TRANSPORT=streamable-http MCP_HOST=127.0.0.1 MCP_PORT=8008 python -m math_mc
 
 ## Add to Cursor
 
-Add to your Cursor MCP settings (`~/.cursor/mcp.json`). This enables Cursor to use 20 powerful math tools for solving equations, computing derivatives/integrals, simplifying expressions, plotting data, and more.
-
-**What this adds:** Symbolic and numerical mathematics server powered by SymPy and SciPy with tools for:
-- Solving equations and finding roots (symbolic and numerical)
-- Computing derivatives and integrals
-- Simplifying and manipulating algebraic expressions
-- Evaluating expressions numerically
-- Converting to LaTeX format
-- Converting decimals to fractions and simplifying fractions
-- Converting between measurement units (length, mass, time, temperature, etc.)
-- Solving differential equations numerically (ODEs)
-- Finding roots of functions numerically
-- Plotting and visualizing data (time series, bar charts, histograms, scatter plots, heatmaps, stacked bars)
+Add to your Cursor MCP settings (`~/.cursor/mcp.json`) to enable all 20 math tools. See [What This Does](#what-this-does) above for capabilities and available tools.
 
 ### CLI/Docker CLI Configuration (Recommended for Cursor)
 
@@ -320,68 +356,6 @@ Add to your Claude Desktop MCP settings. The configuration file location varies 
 - **Initialization is automatic**: Claude Desktop automatically handles the MCP protocol initialization handshake. You don't need to do anything manually.
 
 After updating the configuration file, restart Claude Desktop for the changes to take effect.
-
-## What This Enables
-
-Once configured and Cursor is restarted, you can ask math questions naturally:
-
-- **"Solve x^2 - 4 = 0"** → Uses `solve` tool
-- **"What's the derivative of x^3?"** → Uses `derivative` tool  
-- **"Simplify sin(x)^2 + cos(x)^2"** → Uses `simplify` tool
-- **"Evaluate 2*pi"** → Uses `evaluate` tool
-- **"Factor x^2 - 4"** → Uses `factor` tool
-- **"Integrate x^2"** → Uses `integral` tool
-- **"Convert x^2 + 1/2 to LaTeX"** → Uses `latex` tool
-- **"Convert 0.5 to a fraction"** → Uses `to_fraction` tool
-- **"Simplify 6/8"** → Uses `simplify_fraction` tool
-- **"Convert 100 meters to kilometers"** → Uses `convert_unit` tool
-- **"Solve dx/dt = -x with x(0)=1 from t=0 to t=5"** → Uses `solve_ode` tool
-- **"Find the root of x^2 - 4 near x=1"** → Uses `find_root` tool
-- **"Plot this time series data"** → Uses `plot_timeseries` tool
-- **"Create a bar chart of these categories"** → Uses `plot_bar_chart` tool
-- **"Show me a histogram of these values"** → Uses `plot_histogram` tool
-
-Cursor automatically discovers all 20 tools and chooses the right one based on your question.
-
-## Why Use This?
-
-This MCP server gives Cursor powerful symbolic and numerical math capabilities powered by SymPy and SciPy. Instead of guessing at math or writing code, Cursor can:
-
-- **Solve equations** - Find roots, solve for variables, answer "what is x?" questions (symbolic and numerical)
-- **Do calculus** - Compute derivatives and integrals symbolically
-- **Simplify expressions** - Reduce complex math to simplest form
-- **Evaluate numerically** - Get concrete answers from symbolic expressions
-- **Format math** - Convert to LaTeX for documentation
-- **Solve differential equations** - Numerically integrate ODEs and systems of ODEs
-- **Find roots numerically** - When symbolic methods fail or are too slow
-- **Visualize data** - Create plots for operational data, time series, distributions, correlations
-
-Perfect for code that involves math, physics simulations, data analysis, engineering problems, or any task requiring mathematical computation.
-
-## Tools
-
-| Tool | Purpose | When to Use |
-|------|---------|-------------|
-| `simplify` | Simplify expression | Reduce complex expressions, verify identities |
-| `solve` | Solve equation for variable | Find roots, solve for unknowns |
-| `derivative` | Compute derivative | Calculus, optimization, rate of change |
-| `integral` | Compute integral | Antiderivatives, areas, integration problems |
-| `expand` | Expand expression | Multiply out parentheses, distribute terms |
-| `factor` | Factor expression | Factor polynomials, find roots by factoring |
-| `evaluate` | Evaluate numerically | Get numeric answers, check solutions |
-| `latex` | Convert to LaTeX | Format math for documentation |
-| `to_fraction` | Convert decimal to fraction | Get exact rational representation |
-| `simplify_fraction` | Simplify fraction | Reduce fractions to lowest terms |
-| `convert_unit` | Convert units | Convert between measurement units |
-| `solve_ode` | Solve ODEs numerically | Systems of differential equations, time-dependent problems |
-| `find_root` | Find root numerically | When symbolic solve fails, finding zeros of functions |
-| `plot_timeseries` | Plot time-series data | Visualize metrics over time, trends, multiple series |
-| `plot_bar_chart` | Create bar charts | Compare categorical data, usage statistics |
-| `plot_histogram` | Create histograms | Data distribution, frequency analysis |
-| `plot_scatter` | Create scatter plots | Correlation analysis, relationship between variables |
-| `plot_heatmap` | Create heatmaps | 2D patterns, time-based or geographic data |
-| `plot_stacked_bar` | Create stacked bar charts | Multi-series comparison across categories |
-| `plot_ode_solution` | Plot ODE solutions | Visualize differential equation results |
 
 ## Plotting & Visualization
 
