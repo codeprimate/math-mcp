@@ -19,6 +19,13 @@ services:
       
       # HTTP endpoint path
       MCP_PATH: ${MCP_PATH:-/mcp}
+      
+      # Allowed hosts (comma-separated) - use "*" to allow all hosts
+      # Include port numbers if your Host headers include them
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-localhost,localhost:8008,host.docker.internal,host.docker.internal:8008}
+      
+      # Set to "true" to disable DNS rebinding protection entirely (allows all hosts)
+      MCP_DISABLE_DNS_REBINDING_PROTECTION: ${MCP_DISABLE_DNS_REBINDING_PROTECTION:-false}
     ports:
       # Map host port to container port
       # Format: "host-port:container-port"

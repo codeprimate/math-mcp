@@ -1,10 +1,34 @@
 """Math MCP Server - Symbolic math via SymPy."""
 
+import os
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from math_mcp import plotting_tools, scipy_tools, sympy_tools, unit_tools
 
-mcp = FastMCP("Math")
+# Read transport security configuration from environment
+disable_protection = os.getenv("MCP_DISABLE_DNS_REBINDING_PROTECTION", "false").lower() == "true"
+
+if disable_protection:
+    allowed_hosts = ["*"]
+    enable_dns_rebinding_protection = False
+else:
+    allowed_hosts_str = os.getenv("MCP_ALLOWED_HOSTS", "*")
+    if allowed_hosts_str == "*":
+        allowed_hosts = ["*"]
+        enable_dns_rebinding_protection = False
+    else:
+        allowed_hosts = [h.strip() for h in allowed_hosts_str.split(",")]
+        enable_dns_rebinding_protection = True
+
+# Configure transport security
+transport_security = TransportSecuritySettings(
+    enable_dns_rebinding_protection=enable_dns_rebinding_protection,
+    allowed_hosts=allowed_hosts
+)
+
+# Create FastMCP instance with transport security settings
+mcp = FastMCP("Math", transport_security=transport_security)
 
 # Register all tools from their respective modules
 sympy_tools.register_sympy_tools(mcp)
@@ -41,21 +65,21 @@ def main():
             
             import uvicorn
             
-            # Use FastMCP's native HTTP app - it handles everything
+            # Log the allowed hosts configuration
+            print(f"[math-mcp] DNS rebinding protection: {transport_security.enable_dns_rebinding_protection}", file=sys.stderr)
+            print(f"[math-mcp] Allowed hosts: {transport_security.allowed_hosts}", file=sys.stderr)
+            
+            # Get the app - it's already configured with transport security
             app = mcp.streamable_http_app
             
-            # Run uvicorn with proper configuration
-            # Note: Uvicorn doesn't support HTTP/2, but FastMCP's streamable_http_app
-            # works with HTTP/1.1 using Server-Sent Events for streaming
+            # Run uvicorn
             uvicorn.run(
                 app,
                 host=host,
                 port=port,
                 log_level="info",
-                # Ensure we don't close connections prematurely
                 timeout_keep_alive=75,
                 timeout_graceful_shutdown=30,
-                # Enable access logging to see all requests
                 access_log=True
             )
         else:
