@@ -1,6 +1,6 @@
 # Math MCP Server
 
-Powerful symbolic mathematics for Cursor AI and Claude Desktop. Solve equations, compute derivatives and integrals, simplify expressions, and more—all through natural language requests. Powered by SymPy and SciPy.
+Powerful symbolic mathematics and statistical analysis for Cursor AI and Claude Desktop. Solve equations, compute derivatives and integrals, perform statistical tests, analyze data, and more—all through natural language requests. Powered by SymPy and SciPy.
 
 ## What This Does
 
@@ -8,7 +8,7 @@ The Math MCP server provides Cursor and Claude Desktop with powerful symbolic an
 
 ### Available Tools
 
-The server provides 20 tools for mathematical computation:
+The server provides 25 tools for mathematical computation:
 
 | Tool | Purpose | When to Use |
 |------|---------|-------------|
@@ -25,6 +25,11 @@ The server provides 20 tools for mathematical computation:
 | `convert_unit` | Convert units | Convert between measurement units |
 | `solve_ode` | Solve ODEs numerically | Systems of differential equations, time-dependent problems |
 | `find_root` | Find root numerically | When symbolic solve fails, finding zeros of functions |
+| `describe_data` | Descriptive statistics | Analyze data distributions, calculate percentiles (p95, p99) |
+| `ttest` | T-test | A/B testing, compare means, hypothesis testing |
+| `correlation` | Correlation analysis | Find relationships between variables, metric dependencies |
+| `linear_regression` | Linear regression | Trend analysis, capacity planning, growth forecasting |
+| `moving_average` | Moving average | Smooth time series, filter noise from metrics |
 | `plot_timeseries` | Plot time-series data | Visualize metrics over time, trends, multiple series |
 | `plot_bar_chart` | Create bar charts | Compare categorical data, usage statistics |
 | `plot_histogram` | Create histograms | Data distribution, frequency analysis |
@@ -49,13 +54,30 @@ Once configured, you can ask math questions naturally:
 - **"Convert 100 meters to kilometers"** → Converts units using `convert_unit` tool
 - **"Solve dx/dt = -x with x(0)=1 from t=0 to t=5"** → Solves ODE using `solve_ode` tool
 - **"Find the root of x^2 - 4 near x=1"** → Finds root using `find_root` tool
+- **"What's the p95 response time for these values?"** → Computes descriptive statistics using `describe_data` tool
+- **"Is there a significant difference between these two samples?"** → Performs t-test using `ttest` tool
+- **"What's the correlation between traffic and error rate?"** → Calculates correlation using `correlation` tool
+- **"Fit a linear trend to this data"** → Performs regression using `linear_regression` tool
+- **"Smooth these metrics with a moving average"** → Applies smoothing using `moving_average` tool
 - **"Plot this time series data"** → Creates visualization using `plot_timeseries` tool
 - **"Create a bar chart of these categories"** → Creates chart using `plot_bar_chart` tool
 - **"Show me a histogram of these values"** → Creates histogram using `plot_histogram` tool
+- **"Plot this data with custom colors: red for series A, blue for series B"** → Uses `colors` parameter in plotting tools
+- **"Create a bar chart with green bars"** → Uses `color` parameter for single-color plots
+- **"Plot this time series with the legend in the upper right corner"** → Uses `legend_loc` parameter
+- **"Show this data with a secondary y-axis for temperature"** → Uses `secondary_y` parameter for dual-axis plots
+- **"Plot with dashed lines for the first series and solid for the second"** → Uses `linestyles` parameter
+- **"Create a bar chart with horizontal bars"** → Uses `horizontal=True` parameter
+- **"Plot this data with x-axis limits from 0 to 100"** → Uses `xlim` parameter to set axis range
+- **"Show this histogram with y-axis from 0 to 50"** → Uses `ylim` parameter to set axis range
+- **"Plot with no grid lines"** → Uses `grid=False` parameter
+- **"Create a chart with only vertical grid lines"** → Uses `grid='y'` parameter
+- **"Plot this time series with rotated x-axis labels at 90 degrees"** → Uses `xlabel_rotation` parameter
+- **"Create a larger plot, 12 by 8 inches"** → Uses `figsize` parameter to control plot dimensions
 
 Cursor and Claude Desktop automatically discover all tools and choose the right one based on your question.
 
-Perfect for code that involves math, physics simulations, data analysis, engineering problems, or any task requiring mathematical computation.
+Perfect for code that involves math, physics simulations, data analysis, statistical testing, performance monitoring, engineering problems, or any task requiring mathematical computation.
 
 ## Quick Start
 
@@ -357,6 +379,55 @@ Add to your Claude Desktop MCP settings. The configuration file location varies 
 
 After updating the configuration file, restart Claude Desktop for the changes to take effect.
 
+## Statistical Analysis
+
+The Math MCP server includes powerful statistical analysis tools for data analysis, A/B testing, and performance monitoring. All tools use `scipy.stats` for reliable, production-ready statistical computations.
+
+### Available Statistical Tools
+
+**1. Descriptive Statistics (`describe_data`)**
+- Compute comprehensive summary statistics
+- Calculate percentiles (p25, p50, p75, p95, p99) critical for SLAs
+- Perfect for: API response times, query performance, user session lengths
+- Returns: count, mean, median, std, variance, min, max, range, percentiles
+- Example: `data=[120, 145, 167, 123, 189, 134]` → Full statistics summary
+
+**2. T-Test (`ttest`)**
+- Perform one-sample or two-sample t-tests
+- Determine if differences are statistically significant
+- Perfect for: A/B testing, before/after comparisons, feature impact analysis
+- Supports: two-sided, greater, less alternatives
+- Returns: statistic, p-value, degrees of freedom, significance (α=0.05)
+- Example: `sample1=[100, 102, 98, 105], sample2=[95, 97, 99, 94]` → Two-sample comparison
+
+**3. Correlation (`correlation`)**
+- Calculate correlation coefficients between variables
+- Methods: Pearson (linear), Spearman (monotonic), Kendall (rank-based)
+- Perfect for: Traffic vs errors, cache hit rate vs response time, metric relationships
+- Returns: correlation coefficient, p-value, method used
+- Example: `x_data=[100, 200, 300], y_data=[0.02, 0.05, 0.03]` → Pearson correlation
+
+**4. Linear Regression (`linear_regression`)**
+- Fit linear models and analyze trends
+- Perfect for: Capacity planning, trend analysis, growth forecasting
+- Returns: slope, intercept, R², p-value, equation string
+- Example: `x_data=[1, 2, 3, 4], y_data=[2, 4, 6, 8]` → Perfect fit (R²=1.0)
+
+**5. Moving Average (`moving_average`)**
+- Smooth time series data to filter noise
+- Methods: Simple (equal weights) or Exponential (weighted toward recent)
+- Perfect for: Smoothing error rates, response time trends, cleaner dashboards
+- Returns: smoothed values, original data, window size, method
+- Example: `data=[10, 12, 11, 15, 13, 14, 12], window=3` → 3-period average
+
+### Use Cases for Web Developers
+
+- **Performance Monitoring**: Analyze response times, calculate p95/p99 latencies
+- **A/B Testing**: Compare conversion rates, feature adoption, user engagement
+- **Capacity Planning**: Forecast growth, predict when scaling is needed
+- **Anomaly Detection**: Identify trends vs. random fluctuations
+- **Metric Relationships**: Understand correlations between system metrics
+
 ## Plotting & Visualization
 
 The Math MCP server includes powerful plotting tools for data visualization. All plots are returned as inline images that appear directly in your conversation.
@@ -515,6 +586,42 @@ Each tool call requires the initialization sequence. Here are examples:
 (echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
  echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
  echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"find_root","arguments":{"function":"x^2 - 4","initial_guess":1.0,"bracket":[0.0,3.0],"method":"brentq"}}}') | \
+ docker run -i --rm math-mcp
+
+# Plot time series with custom colors
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+ echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_timeseries","arguments":{"timestamps":["2026-01-01T10:00","2026-01-01T11:00","2026-01-01T12:00"],"series":{"cpu":[45,67,52],"memory":[60,62,58]},"colors":["red","blue"],"title":"System Metrics"}}}') | \
+ docker run -i --rm math-mcp
+
+# Create bar chart with custom color and horizontal orientation
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+ echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_bar_chart","arguments":{"categories":["Endpoint A","Endpoint B","Endpoint C"],"values":[1250,890,1100],"color":"#FF5733","horizontal":true,"title":"Request Counts"}}}') | \
+ docker run -i --rm math-mcp
+
+# Plot histogram with axis limits and no grid
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+ echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_histogram","arguments":{"data":[120,145,167,123,189,134,156,178,145,167],"bins":10,"xlim":[100,200],"ylim":[0,5],"grid":false,"title":"Response Time Distribution"}}}') | \
+ docker run -i --rm math-mcp
+
+# Plot time series with secondary y-axis and custom linestyles
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+ echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_timeseries","arguments":{"timestamps":["10:00","11:00","12:00","13:00"],"series":{"requests":[100,200,150,180],"temperature":[20.5,21.3,22.1,21.8]},"secondary_y":{"temperature":"Temperature (°C)"},"linestyles":["-","--"],"legend_loc":"upper left"}}}') | \
+ docker run -i --rm math-mcp
+
+# Create scatter plot with custom figure size and rotated labels
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+ echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_scatter","arguments":{"x_data":[100,200,300,400,500],"y_data":[0.02,0.05,0.03,0.06,0.04],"color":"steelblue","figsize":[12,8],"title":"Traffic vs Error Rate","xlabel":"Requests per second","ylabel":"Error Rate"}}}') | \
+ docker run -i --rm math-mcp
+
+# Plot stacked bar chart with custom colors and legend
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+ echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_stacked_bar","arguments":{"categories":["Jan","Feb","Mar"],"series":{"success":[100,120,110],"error":[10,8,12],"warning":[5,3,4]},"colors":["green","red","orange"],"legend_loc":"upper right","xlabel_rotation":0}}}') | \
  docker run -i --rm math-mcp
 ```
 

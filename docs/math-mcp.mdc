@@ -1,0 +1,22 @@
+---
+description: Mathematical computations, statistical analysis, data visualization, and quantitative data processing tasks.
+alwaysApply: false
+---
+Always use the math MCP server for any mathematical computation, numerical analysis, statistical evaluation, or quantitative data processing.
+
+Use the math MCP server whenever the user needs numeric or mathematical analysis, when any math needs to be done, or when working with quantitative data. The server provides comprehensive mathematical computation, statistical analysis, and charting capabilities.
+
+Available capabilities:
+- Mathematical computations: simplify, solve, derivative, integral, expand, factor, evaluate, find_root, solve_ode
+- Statistical analysis: describe_data, ttest, correlation, linear_regression, moving_average
+- Charting and visualization: plot_timeseries, plot_bar_chart, plot_histogram, plot_scatter, plot_heatmap, plot_stacked_bar, plot_ode_solution
+- Utilities: latex, to_fraction, simplify_fraction, convert_unit
+
+Functions work together to perform complete analysis workflows:
+- Analyze data with `describe_data` to get statistics, then visualize distributions with `plot_histogram`
+- Run `correlation` or `linear_regression` to find relationships, then visualize with `plot_scatter` to show the relationship
+- Use `moving_average` to smooth time series data, then plot with `plot_timeseries` to visualize trends
+- Solve differential equations with `solve_ode`, then visualize solutions with `plot_ode_solution`
+- Perform statistical tests with `ttest`, then create visualizations with `plot_bar_chart` to compare groups
+
+Cursor automatically discovers and uses the appropriate tool based on the question. Chain multiple tools together for comprehensive analysis workflows.

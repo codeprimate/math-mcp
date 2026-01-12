@@ -4,7 +4,7 @@ import os
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
-from math_mcp import plotting_tools, scipy_tools, sympy_tools, unit_tools
+from math_mcp import plotting_tools, scipy_tools, stats_tools, sympy_tools, unit_tools
 
 # Read transport security configuration from environment
 disable_protection = os.getenv("MCP_DISABLE_DNS_REBINDING_PROTECTION", "false").lower() == "true"
@@ -34,6 +34,7 @@ mcp = FastMCP("Math", transport_security=transport_security)
 sympy_tools.register_sympy_tools(mcp)
 unit_tools.register_unit_tools(mcp)
 scipy_tools.register_scipy_tools(mcp)
+stats_tools.register_stats_tools(mcp)
 plotting_tools.register_plotting_tools(mcp)
 
 
