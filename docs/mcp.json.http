@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "math-mcp": {
+      "command": "{path to node binary}",
+      "args": ["{path to npx binary}", "-y", "mcp-remote", "http://localhost:8008/mcp"]
+    }
+  }
+}

@@ -8,7 +8,7 @@ services:
     restart: unless-stopped
     environment:
       # Transport mode: "stdio" or "streamable-http"
-      # Use "streamable-http" for persistent HTTP server accessible from network
+      # Use "streamable-http" for HTTP endpoint (compatible with mcp-remote)
       MCP_TRANSPORT: ${MCP_TRANSPORT:-streamable-http}
       
       # Host binding (0.0.0.0 = all interfaces, accessible from host and Docker network)
@@ -20,12 +20,13 @@ services:
       # HTTP endpoint path
       MCP_PATH: ${MCP_PATH:-/mcp}
       
-      # Allowed hosts (comma-separated) - use "*" to allow all hosts
+      # Allowed hosts (comma-separated)
       # Include port numbers if your Host headers include them
-      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-localhost,localhost:8008,host.docker.internal,host.docker.internal:8008}
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-localhost,localhost:8008,host.docker.internal,host.docker.internal:8008,127.0.0.1,127.0.0.1:8008}
       
       # Set to "true" to disable DNS rebinding protection entirely (allows all hosts)
-      MCP_DISABLE_DNS_REBINDING_PROTECTION: ${MCP_DISABLE_DNS_REBINDING_PROTECTION:-false}
+      # May be needed for @modelcontextprotocol/server-remote compatibility
+      MCP_DISABLE_DNS_REBINDING_PROTECTION: ${MCP_DISABLE_DNS_REBINDING_PROTECTION:-true}
     ports:
       # Map host port to container port
       # Format: "host-port:container-port"

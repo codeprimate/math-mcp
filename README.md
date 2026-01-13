@@ -149,6 +149,128 @@ Once configured, you can ask math questions naturally in Cursor or Claude. See [
 
 ---
 
+## HTTP Endpoint Setup (Alternative)
+
+For users who want a persistent MCP server accessible via HTTP, use Docker Compose to run a long-lived container. This is useful when:
+- You want a single server instance shared across multiple clients
+- You're integrating with other applications or services
+- You prefer managing the server lifecycle independently
+
+### Step 1: Start the Server with Docker Compose
+
+```bash
+# Build the image (first time only)
+docker build -t math-mcp .
+
+# Start the persistent server
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop the server when done
+docker-compose down
+```
+
+**Configuration:**
+- The server runs on port 8008 by default (configurable via `.env` file)
+- See `env.example` for all available environment variables
+- Copy `env.example` to `.env` to customize settings
+
+### Step 2: Configure Cursor or Claude Desktop
+
+To connect to the HTTP endpoint, you'll use the `mcp-remote` package which acts as a proxy between the stdio-based MCP client and your HTTP server.
+
+**Note:** `mcp-remote` requires Node.js 20 or higher. Make sure you have a compatible version installed before configuring the HTTP endpoint.
+
+#### For Cursor
+
+Add to your Cursor MCP settings (`~/.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "math-mcp": {
+      "command": "/path/to/node",
+      "args": ["/path/to/npx", "-y", "mcp-remote", "http://localhost:8008/mcp"]
+    }
+  }
+}
+```
+
+**Note:** Replace `/path/to/node` and `/path/to/npx` with actual paths on your system. To find the paths:
+- **macOS/Linux**: Run `which node` and `which npx` in your terminal
+- **Windows**: Run `where node` and `where npx` in your command prompt
+
+For example, on macOS/Linux:
+```bash
+which node   # Returns something like: /usr/local/bin/node
+which npx    # Returns something like: /usr/local/bin/npx
+```
+
+Then use those paths in your configuration.
+
+**Example configuration files:**
+- [`docs/mcp.json`](./docs/mcp.json) - stdio Docker configuration (recommended for most users)
+- [`docs/mcp.json.http`](./docs/mcp.json.http) - HTTP endpoint configuration (requires persistent server)
+
+#### For Claude Desktop
+
+The configuration is the same format. Add to your Claude Desktop MCP settings:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "math-mcp": {
+      "command": "/path/to/node",
+      "args": ["/path/to/npx", "-y", "mcp-remote", "http://localhost:8008/mcp"]
+    }
+  }
+}
+```
+
+**Note:** Replace `/path/to/node` and `/path/to/npx` with actual paths. Use `which node` and `which npx` (macOS/Linux) or `where node` and `where npx` (Windows) to find them.
+
+**Example configuration files:**
+- [`docs/claude_desktop_config.json`](./docs/claude_desktop_config.json) - HTTP endpoint configuration example
+- Same format as Cursor's `mcp.json` (see `docs/mcp.json` for stdio Docker mode)
+
+### Step 3: Restart and Test
+
+**Restart Cursor or Claude Desktop** for the changes to take effect. The client will now connect to your persistent HTTP server.
+
+### Managing the Server
+
+```bash
+# Check server status
+docker-compose ps
+
+# View logs
+docker-compose logs -f math-mcp
+
+# Restart server
+docker-compose restart
+
+# Stop server
+docker-compose down
+
+# Update and rebuild
+docker build -t math-mcp .
+docker-compose up -d
+```
+
+### Troubleshooting
+
+- **Connection refused**: Ensure the server is running with `docker-compose ps`
+- **Port conflict**: Change `MCP_HOST_PORT` in `.env` file and update the URL in your config
+- **Node/npx not found**: Install Node.js from [nodejs.org](https://nodejs.org/) or use your system package manager
+- **mcp-remote errors**: `mcp-remote` requires Node.js 20 or higher. Check your version with `node --version` and upgrade if needed
+
+---
+
 ## Running the Server
 
 The server supports two transport modes:
@@ -330,7 +452,7 @@ If you prefer running locally without Docker:
 ### Complete Example
 
 See example configuration file:
-- [`docs/mcp.json.example`](./docs/mcp.json.example) - Docker CLI configuration
+- [`docs/mcp.json`](./docs/mcp.json) - Docker CLI configuration
 
 You can copy it to `~/.cursor/mcp.json` and customize as needed.
 
