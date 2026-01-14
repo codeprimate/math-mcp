@@ -1119,6 +1119,260 @@ def tool_plot_ode_solution(
         raise ValueError(f"Error creating ODE solution plot: {str(e)}")
 
 
+def tool_plot_stackplot(
+    x_data: Annotated[list[float] | list[str], Field(description="X-axis values (numeric or string labels). Example: [0, 1, 2, 3] or ['Jan', 'Feb', 'Mar']")],
+    series: Annotated[dict[str, list[float]], Field(description="Dictionary of series names to their values. Each series becomes a layer in the stack. Example: {'component_a': [10.5, 12.3, 11.8, 13.2], 'component_b': [5.2, 4.8, 6.1, 5.5]}")],
+    title: Annotated[str | None, Field(description="Title for the plot. If None, no title is displayed.")] = None,
+    xlabel: Annotated[str, Field(description="Label for the x-axis.")] = "X",
+    ylabel: Annotated[str, Field(description="Label for the y-axis.")] = "Value",
+    figsize: Annotated[tuple[int, int], Field(description="Figure size in inches as (width, height).")] = (10, 6),
+    colors: Annotated[list[str] | None, Field(description="List of named colors or hex values. If None, uses tab10 palette (excluding yellow). If provided but shorter than series count, pads with unused tab10 colors using HSV distance.")] = None,
+    xlim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for x-axis limits. If None, uses matplotlib auto-scaling.")] = None,
+    ylim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for y-axis limits. If None, uses matplotlib auto-scaling.")] = None,
+    grid: Annotated[bool | str, Field(description="Grid control: True (both axes), False (hide), 'x' (x-axis only), 'y' (y-axis only), 'both' (both axes).")] = True,
+    legend_loc: Annotated[str | None, Field(description="Legend location: 'best', 'upper right', 'upper left', 'lower left', 'lower right', 'right', 'center left', 'center right', 'lower center', 'upper center', 'center', or None to hide.")] = "best",
+    baseline: Annotated[str, Field(description="Baseline for stacking: 'zero' (stack from zero), 'sym' (symmetric around zero), 'wiggle' (minimize wiggle), 'weighted_wiggle'.")] = "zero",
+    alpha: Annotated[float, Field(description="Transparency of the filled areas (0.0-1.0).")] = 0.7,
+    xlabel_rotation: Annotated[int | float, Field(description="Rotation angle in degrees for x-axis labels (0-90 typical).")] = 45,
+) -> ImageContent:
+    """Plot a stacked area chart to show composition over a continuous variable.
+    
+    Use this when:
+    - Showing how multiple components contribute to a total over time or another continuous variable
+    - Visualizing the evolution of composition across a range
+    - Comparing multiple series where you want to see both individual values and cumulative totals
+    - Displaying trends in part-to-whole relationships
+    
+    Examples:
+    - x_data=[0, 1, 2, 3], series={'component_a': [10.5, 12.3, 11.8, 13.2], 'component_b': [5.2, 4.8, 6.1, 5.5]}
+    - x_data=['Q1', 'Q2', 'Q3', 'Q4'], series={'product_x': [100, 120, 110, 130], 'product_y': [80, 90, 95, 100]}
+    """
+    try:
+        # Input validation
+        if not x_data:
+            raise ValueError("x_data list cannot be empty")
+        if not series:
+            raise ValueError("series dictionary cannot be empty")
+        
+        # Validate all series have same length as x_data
+        for name, values in series.items():
+            if len(values) != len(x_data):
+                raise ValueError(f"Series '{name}' has {len(values)} values but x_data has {len(x_data)}")
+        
+        # Validate axis limits
+        if xlim is not None:
+            if len(xlim) != 2 or xlim[0] >= xlim[1]:
+                raise ValueError("xlim must be a tuple (min, max) where min < max")
+        if ylim is not None:
+            if len(ylim) != 2 or ylim[0] >= ylim[1]:
+                raise ValueError("ylim must be a tuple (min, max) where min < max")
+        
+        # Validate grid parameter
+        valid_grid_values = {True, False, "x", "y", "both"}
+        if grid not in valid_grid_values:
+            raise ValueError(f"grid must be one of {valid_grid_values}")
+        
+        # Validate baseline parameter
+        valid_baselines = {"zero", "sym", "wiggle", "weighted_wiggle"}
+        if baseline not in valid_baselines:
+            raise ValueError(f"baseline must be one of {valid_baselines}")
+        
+        # Validate alpha
+        if not (0.0 <= alpha <= 1.0):
+            raise ValueError("alpha must be between 0.0 and 1.0")
+        
+        # Handle colors
+        series_names = list(series.keys())
+        num_series = len(series_names)
+        if colors is not None:
+            if len(colors) > num_series:
+                raise ValueError(f"colors list has {len(colors)} items but only {num_series} series provided")
+            # Validate all colors
+            for color in colors:
+                _validate_color(color)
+            # Pad colors if needed
+            colors = _pad_colors_with_hsv_distance(colors, num_series)
+        else:
+            # Use tab10 palette (excluding yellow)
+            tab10_colors = _get_tab10_colors_no_yellow()
+            # Cycle if needed
+            colors = [tab10_colors[i % len(tab10_colors)] for i in range(num_series)]
+        
+        # Create figure
+        fig, ax = plt.subplots(figsize=figsize)
+        
+        # Prepare data for stacking - need to convert to arrays
+        series_data = [series[name] for name in series_names]
+        
+        # Handle x_data - if strings, use numeric indices for plotting
+        if isinstance(x_data[0], str):
+            x_numeric = np.arange(len(x_data))
+            use_string_labels = True
+        else:
+            x_numeric = np.array(x_data)
+            use_string_labels = False
+        
+        # Plot stacked area chart
+        ax.stackplot(x_numeric, *series_data, labels=series_names, colors=colors, 
+                    alpha=alpha, baseline=baseline)
+        
+        # Set x-axis labels
+        if use_string_labels:
+            ax.set_xticks(x_numeric)
+            ax.set_xticklabels(x_data, rotation=xlabel_rotation, ha='right')
+        elif xlabel_rotation != 0:
+            # Apply rotation even for numeric labels if requested
+            plt.xticks(rotation=xlabel_rotation, ha='right')
+        
+        # Set axis limits
+        if xlim is not None:
+            ax.set_xlim(xlim)
+        if ylim is not None:
+            ax.set_ylim(ylim)
+        
+        # Styling
+        ax.set_xlabel(xlabel, fontsize=12)
+        ax.set_ylabel(ylabel, fontsize=12)
+        if title:
+            ax.set_title(title, fontsize=14, fontweight='bold')
+        
+        # Legend
+        if legend_loc is not None:
+            ax.legend(loc=legend_loc)
+        
+        # Grid control
+        if grid is True or grid == "both":
+            ax.grid(True, alpha=0.3)
+        elif grid == "x":
+            ax.grid(True, alpha=0.3, axis='x')
+        elif grid == "y":
+            ax.grid(True, alpha=0.3, axis='y')
+        # grid == False: no grid
+        
+        # Save to memory buffer
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+        plt.close(fig)  # Free memory
+        
+        # Return ImageContent object
+        return _create_image_content(buf)
+        
+    except Exception as e:
+        plt.close('all')  # Clean up any figures
+        raise ValueError(f"Error creating stackplot: {str(e)}")
+
+
+def tool_plot_pie_chart(
+    labels: Annotated[list[str], Field(description="Labels for each pie slice. Example: ['Category A', 'Category B', 'Category C']")],
+    values: Annotated[list[float], Field(description="Values for each slice. Must have same length as labels. Example: [25.5, 18.9, 32.1]")],
+    title: Annotated[str | None, Field(description="Title for the plot. If None, no title is displayed.")] = None,
+    figsize: Annotated[tuple[int, int], Field(description="Figure size in inches as (width, height).")] = (10, 8),
+    colors: Annotated[list[str] | None, Field(description="List of named colors or hex values. If None, uses tab10 palette (excluding yellow). If provided but shorter than labels count, pads with unused tab10 colors using HSV distance.")] = None,
+    autopct: Annotated[str | None, Field(description="Format string for percentage display (e.g., '%1.1f%%', '%0.0f%%'). If None, no percentages are shown.")] = '%1.1f%%',
+    startangle: Annotated[float, Field(description="Starting angle in degrees for the first slice (0-360).")] = 90,
+    explode: Annotated[list[float] | None, Field(description="List of explode values (0-1) to offset slices. If None, no slices are exploded. Example: [0.1, 0, 0, 0.2]")] = None,
+    legend_loc: Annotated[str | None, Field(description="Legend location: 'best', 'upper right', 'upper left', 'lower left', 'lower right', 'right', 'center left', 'center right', 'lower center', 'upper center', 'center', or None to hide.")] = "best",
+    shadow: Annotated[bool, Field(description="If True, adds shadow effect to the pie chart.")] = False,
+) -> ImageContent:
+    """Plot a pie chart to show proportional composition of data.
+    
+    Use this when:
+    - Showing parts of a whole
+    - Visualizing proportional distributions
+    - Comparing relative sizes of categories
+    - Displaying percentage breakdowns
+    
+    Examples:
+    - labels=['Category A', 'Category B', 'Category C'], values=[25.5, 18.9, 32.1]
+    - labels=['Group 1', 'Group 2'], values=[45, 120], autopct='%0.0f%%', explode=[0.1, 0]
+    """
+    try:
+        # Input validation
+        if not labels:
+            raise ValueError("labels list cannot be empty")
+        if len(labels) != len(values):
+            raise ValueError(f"labels has {len(labels)} items but values has {len(values)}")
+        
+        # Validate all values are non-negative
+        if any(v < 0 for v in values):
+            raise ValueError("All values must be non-negative")
+        
+        # Check if all values are zero
+        if all(v == 0 for v in values):
+            raise ValueError("At least one value must be greater than zero")
+        
+        # Validate startangle
+        if not (0 <= startangle <= 360):
+            raise ValueError("startangle must be between 0 and 360 degrees")
+        
+        # Validate explode
+        if explode is not None:
+            if len(explode) != len(labels):
+                raise ValueError(f"explode has {len(explode)} items but labels has {len(labels)}")
+            if any(e < 0 or e > 1 for e in explode):
+                raise ValueError("All explode values must be between 0 and 1")
+        
+        # Handle colors
+        num_slices = len(labels)
+        if colors is not None:
+            if len(colors) > num_slices:
+                raise ValueError(f"colors list has {len(colors)} items but only {num_slices} labels provided")
+            # Validate all colors
+            for color in colors:
+                _validate_color(color)
+            # Pad colors if needed
+            colors = _pad_colors_with_hsv_distance(colors, num_slices)
+        else:
+            # Use tab10 palette (excluding yellow)
+            tab10_colors = _get_tab10_colors_no_yellow()
+            # Cycle if needed
+            colors = [tab10_colors[i % len(tab10_colors)] for i in range(num_slices)]
+        
+        # Create figure
+        fig, ax = plt.subplots(figsize=figsize)
+        
+        # Plot pie chart
+        wedges, texts, autotexts = ax.pie(
+            values,
+            labels=labels,
+            colors=colors,
+            autopct=autopct,
+            startangle=startangle,
+            explode=explode,
+            shadow=shadow
+        )
+        
+        # Style the percentage text
+        if autopct is not None:
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontweight('bold')
+                autotext.set_fontsize(10)
+        
+        # Styling
+        if title:
+            ax.set_title(title, fontsize=14, fontweight='bold')
+        
+        # Legend
+        if legend_loc is not None:
+            ax.legend(wedges, labels, loc=legend_loc)
+        
+        # Equal aspect ratio ensures pie is drawn as a circle
+        ax.axis('equal')
+        
+        # Save to memory buffer
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+        plt.close(fig)  # Free memory
+        
+        # Return ImageContent object
+        return _create_image_content(buf)
+        
+    except Exception as e:
+        plt.close('all')  # Clean up any figures
+        raise ValueError(f"Error creating pie chart: {str(e)}")
+
+
 def register_plotting_tools(mcp):
     """Register matplotlib-based plotting tools with the MCP server."""
     mcp.tool(name="plot_timeseries")(tool_plot_timeseries)
@@ -1127,4 +1381,6 @@ def register_plotting_tools(mcp):
     mcp.tool(name="plot_scatter")(tool_plot_scatter)
     mcp.tool(name="plot_heatmap")(tool_plot_heatmap)
     mcp.tool(name="plot_stacked_bar")(tool_plot_stacked_bar)
+    mcp.tool(name="plot_stackplot")(tool_plot_stackplot)
     mcp.tool(name="plot_ode_solution")(tool_plot_ode_solution)
+    mcp.tool(name="plot_pie_chart")(tool_plot_pie_chart)
