@@ -16,14 +16,23 @@ from pydantic import Field
 matplotlib.use('Agg')
 
 
-def _create_image_content(buf: io.BytesIO) -> ImageContent:
-    """Helper to create ImageContent from BytesIO buffer."""
+def _create_image_content(buf: io.BytesIO, format: str = 'png') -> ImageContent:
+    """Helper to create ImageContent from BytesIO buffer.
+    
+    Args:
+        buf: BytesIO buffer containing image data
+        format: Image format ('png' or 'svg'). Defaults to 'png'.
+        
+    Returns:
+        ImageContent object with appropriate mimeType
+    """
     buf.seek(0)
     image_data = base64.b64encode(buf.read()).decode('utf-8')
+    mime_type = "image/png" if format == 'png' else "image/svg+xml"
     return ImageContent(
         type="image",
         data=image_data,
-        mimeType="image/png"
+        mimeType=mime_type
     )
 
 
@@ -190,6 +199,7 @@ def tool_plot_timeseries(
     linestyles: Annotated[list[str] | None, Field(description="List of linestyle strings ('-', '--', '-.', ':'), one per series. If None, uses solid lines. Cycles if shorter than series count.")] = None,
     secondary_y: Annotated[dict[str, str] | None, Field(description="Dictionary mapping series names to y-axis labels for secondary axis. Example: {'temperature': 'Temperature (°C)'}")] = None,
     xlabel_rotation: Annotated[int | float, Field(description="Rotation angle in degrees for x-axis labels (0-90 typical).")] = 45,
+    output_format: Annotated[str, Field(description="Output image format: 'png' or 'svg'. Defaults to 'png'.")] = 'png',
 ) -> ImageContent:
     """Plot time-series data with multiple series.
     
@@ -205,6 +215,8 @@ def tool_plot_timeseries(
     """
     try:
         # Input validation
+        if output_format not in ('png', 'svg'):
+            raise ValueError("output_format must be 'png' or 'svg'")
         if not timestamps:
             raise ValueError("timestamps list cannot be empty")
         if not series:
@@ -353,11 +365,14 @@ def tool_plot_timeseries(
         
         # Save to memory buffer
         buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+        if output_format == 'svg':
+            fig.savefig(buf, format='svg', bbox_inches='tight')
+        else:
+            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
-        return _create_image_content(buf)
+        return _create_image_content(buf, format=output_format)
         
     except Exception as e:
         plt.close('all')  # Clean up any figures
@@ -377,6 +392,9 @@ def tool_plot_bar_chart(
     ylim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for y-axis limits. If None, uses matplotlib auto-scaling.")] = None,
     grid: Annotated[bool | str, Field(description="Grid control: True (both axes), False (hide), 'x' (x-axis only), 'y' (y-axis only), 'both' (both axes).")] = True,
     xlabel_rotation: Annotated[int | float, Field(description="Rotation angle in degrees for x-axis labels (0-90 typical).")] = 45,
+    show_values: Annotated[bool, Field(description="If True, display the value of each bar on top of (or next to) the bar.")] = True,
+    value_format: Annotated[str, Field(description="Format string for displaying values (e.g., '.1f' for 1 decimal, '.0f' for integers, '.2f' for 2 decimals).")] = '.1f',
+    output_format: Annotated[str, Field(description="Output image format: 'png' or 'svg'. Defaults to 'png'.")] = 'png',
 ) -> ImageContent:
     """Plot a bar chart comparing categorical data.
     
@@ -389,9 +407,12 @@ def tool_plot_bar_chart(
     Examples:
     - categories=['Group A', 'Group B', 'Group C'], values=[25.5, 18.9, 32.1]
     - categories=['Item 1', 'Item 2', 'Item 3'], values=[45, 120, 12], horizontal=True
+    - categories=['A', 'B', 'C'], values=[10, 20, 15], show_values=True, value_format='.0f'
     """
     try:
         # Input validation
+        if output_format not in ('png', 'svg'):
+            raise ValueError("output_format must be 'png' or 'svg'")
         if not categories:
             raise ValueError("categories list cannot be empty")
         if len(categories) != len(values):
@@ -410,6 +431,15 @@ def tool_plot_bar_chart(
         if grid not in valid_grid_values:
             raise ValueError(f"grid must be one of {valid_grid_values}")
         
+        # Validate value_format if show_values is True
+        if show_values:
+            try:
+                # Test the format string with a sample value
+                test_value = 123.456
+                f"{test_value:{value_format}}"
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Invalid value_format '{value_format}': {str(e)}")
+        
         # Validate and set color
         if color is None:
             color = 'steelblue'
@@ -421,15 +451,34 @@ def tool_plot_bar_chart(
         
         # Plot bars
         if horizontal:
-            ax.barh(categories, values, color=color)
+            bars = ax.barh(categories, values, color=color)
             ax.set_ylabel(xlabel, fontsize=12)
             ax.set_xlabel(ylabel, fontsize=12)
         else:
-            ax.bar(categories, values, color=color)
+            bars = ax.bar(categories, values, color=color)
             ax.set_xlabel(xlabel, fontsize=12)
             ax.set_ylabel(ylabel, fontsize=12)
             # Rotate x-axis labels
             plt.xticks(rotation=xlabel_rotation, ha='right')
+        
+        # Add value labels on bars if requested
+        if show_values:
+            for i, (bar, value) in enumerate(zip(bars, values)):
+                # Format the value
+                formatted_value = f"{value:{value_format}}"
+                
+                if horizontal:
+                    # For horizontal bars, place text to the right of the bar
+                    x_pos = value
+                    y_pos = bar.get_y() + bar.get_height() / 2
+                    ax.text(x_pos, y_pos, formatted_value,
+                           ha='left', va='center', fontsize=9, fontweight='bold')
+                else:
+                    # For vertical bars, place text on top of the bar
+                    x_pos = bar.get_x() + bar.get_width() / 2
+                    y_pos = bar.get_height()
+                    ax.text(x_pos, y_pos, formatted_value,
+                           ha='center', va='bottom', fontsize=9, fontweight='bold')
         
         # Set axis limits
         if xlim is not None:
@@ -452,11 +501,14 @@ def tool_plot_bar_chart(
         
         # Save to memory buffer
         buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+        if output_format == 'svg':
+            fig.savefig(buf, format='svg', bbox_inches='tight')
+        else:
+            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
-        return _create_image_content(buf)
+        return _create_image_content(buf, format=output_format)
         
     except Exception as e:
         plt.close('all')  # Clean up any figures
@@ -474,6 +526,7 @@ def tool_plot_histogram(
     xlim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for x-axis limits. If None, uses matplotlib auto-scaling.")] = None,
     ylim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for y-axis limits. If None, uses matplotlib auto-scaling.")] = None,
     grid: Annotated[bool | str, Field(description="Grid control: True (both axes), False (hide), 'x' (x-axis only), 'y' (y-axis only), 'both' (both axes).")] = True,
+    output_format: Annotated[str, Field(description="Output image format: 'png' or 'svg'. Defaults to 'png'.")] = 'png',
 ) -> ImageContent:
     """Plot a histogram to visualize data distribution.
     
@@ -489,6 +542,8 @@ def tool_plot_histogram(
     """
     try:
         # Input validation
+        if output_format not in ('png', 'svg'):
+            raise ValueError("output_format must be 'png' or 'svg'")
         if not data:
             raise ValueError("data list cannot be empty")
         if bins <= 0:
@@ -552,11 +607,14 @@ def tool_plot_histogram(
         
         # Save to memory buffer
         buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+        if output_format == 'svg':
+            fig.savefig(buf, format='svg', bbox_inches='tight')
+        else:
+            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
-        return _create_image_content(buf)
+        return _create_image_content(buf, format=output_format)
         
     except Exception as e:
         plt.close('all')  # Clean up any figures
@@ -575,6 +633,7 @@ def tool_plot_scatter(
     xlim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for x-axis limits. If None, uses matplotlib auto-scaling.")] = None,
     ylim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for y-axis limits. If None, uses matplotlib auto-scaling.")] = None,
     grid: Annotated[bool | str, Field(description="Grid control: True (both axes), False (hide), 'x' (x-axis only), 'y' (y-axis only), 'both' (both axes).")] = True,
+    output_format: Annotated[str, Field(description="Output image format: 'png' or 'svg'. Defaults to 'png'.")] = 'png',
 ) -> ImageContent:
     """Plot a scatter plot to show relationship between two variables.
     
@@ -590,6 +649,8 @@ def tool_plot_scatter(
     """
     try:
         # Input validation
+        if output_format not in ('png', 'svg'):
+            raise ValueError("output_format must be 'png' or 'svg'")
         if not x_data or not y_data:
             raise ValueError("x_data and y_data cannot be empty")
         if len(x_data) != len(y_data):
@@ -661,11 +722,14 @@ def tool_plot_scatter(
         
         # Save to memory buffer
         buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+        if output_format == 'svg':
+            fig.savefig(buf, format='svg', bbox_inches='tight')
+        else:
+            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
-        return _create_image_content(buf)
+        return _create_image_content(buf, format=output_format)
         
     except Exception as e:
         plt.close('all')  # Clean up any figures
@@ -681,6 +745,7 @@ def tool_plot_heatmap(
     figsize: Annotated[tuple[int, int], Field(description="Figure size in inches as (width, height).")] = (10, 8),
     grid: Annotated[bool | str, Field(description="Grid control: True (both axes), False (hide), 'x' (x-axis only), 'y' (y-axis only), 'both' (both axes).")] = True,
     xlabel_rotation: Annotated[int | float, Field(description="Rotation angle in degrees for x-axis labels (0-90 typical).")] = 45,
+    output_format: Annotated[str, Field(description="Output image format: 'png' or 'svg'. Defaults to 'png'.")] = 'png',
 ) -> ImageContent:
     """Plot a heatmap to visualize 2D patterns in matrix data.
     
@@ -696,6 +761,8 @@ def tool_plot_heatmap(
     """
     try:
         # Input validation
+        if output_format not in ('png', 'svg'):
+            raise ValueError("output_format must be 'png' or 'svg'")
         if not data:
             raise ValueError("data cannot be empty")
         if not all(isinstance(row, list) for row in data):
@@ -764,11 +831,14 @@ def tool_plot_heatmap(
         
         # Save to memory buffer
         buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+        if output_format == 'svg':
+            fig.savefig(buf, format='svg', bbox_inches='tight')
+        else:
+            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
-        return _create_image_content(buf)
+        return _create_image_content(buf, format=output_format)
         
     except Exception as e:
         plt.close('all')  # Clean up any figures
@@ -789,6 +859,11 @@ def tool_plot_stacked_bar(
     grid: Annotated[bool | str, Field(description="Grid control: True (both axes), False (hide), 'x' (x-axis only), 'y' (y-axis only), 'both' (both axes).")] = True,
     legend_loc: Annotated[str | None, Field(description="Legend location: 'best', 'upper right', 'upper left', 'lower left', 'lower right', 'right', 'center left', 'center right', 'lower center', 'upper center', 'center', or None to hide.")] = "best",
     xlabel_rotation: Annotated[int | float, Field(description="Rotation angle in degrees for x-axis labels (0-90 typical).")] = 45,
+    show_values: Annotated[bool, Field(description="If True, display values on the stacked bars. Can show segment values, total values, or both depending on show_segment_values and show_total.")] = True,
+    show_segment_values: Annotated[bool, Field(description="If True and show_values=True, display individual segment values within each bar segment.")] = False,
+    show_total: Annotated[bool, Field(description="If True and show_values=True, display the total value on top of (or next to) each stacked bar.")] = True,
+    value_format: Annotated[str, Field(description="Format string for displaying values (e.g., '.1f' for 1 decimal, '.0f' for integers, '.2f' for 2 decimals).")] = '.1f',
+    output_format: Annotated[str, Field(description="Output image format: 'png' or 'svg'. Defaults to 'png'.")] = 'png',
 ) -> ImageContent:
     """Plot a stacked bar chart to show composition of totals across categories.
     
@@ -801,9 +876,12 @@ def tool_plot_stacked_bar(
     Examples:
     - categories=['Category A', 'Category B'], series={'part_1': [10.5, 8.3], 'part_2': [5.2, 3.8], 'part_3': [2.1, 1.5]}
     - categories=['Period 1', 'Period 2'], series={'component_x': [15, 20], 'component_y': [8, 6]}
+    - categories=['A', 'B'], series={'x': [10, 15], 'y': [5, 8]}, show_values=True, show_total=True, show_segment_values=True
     """
     try:
         # Input validation
+        if output_format not in ('png', 'svg'):
+            raise ValueError("output_format must be 'png' or 'svg'")
         if not categories:
             raise ValueError("categories list cannot be empty")
         if not series:
@@ -826,6 +904,15 @@ def tool_plot_stacked_bar(
         valid_grid_values = {True, False, "x", "y", "both"}
         if grid not in valid_grid_values:
             raise ValueError(f"grid must be one of {valid_grid_values}")
+        
+        # Validate value_format if show_values is True
+        if show_values:
+            try:
+                # Test the format string with a sample value
+                test_value = 123.456
+                f"{test_value:{value_format}}"
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Invalid value_format '{value_format}': {str(e)}")
         
         # Handle colors
         series_names = list(series.keys())
@@ -856,8 +943,28 @@ def tool_plot_stacked_bar(
             left = np.zeros(len(categories))
             
             for i, (name, values) in enumerate(zip(series_names, series_data)):
-                ax.barh(x_pos, values, left=left, label=name, color=colors[i])
+                bars = ax.barh(x_pos, values, left=left, label=name, color=colors[i])
+                
+                # Add segment value labels if requested
+                if show_values and show_segment_values:
+                    for j, (bar, value) in enumerate(zip(bars, values)):
+                        if value > 0:  # Only show if segment has value
+                            x_label_pos = left[j] + value / 2
+                            y_label_pos = bar.get_y() + bar.get_height() / 2
+                            formatted_value = f"{value:{value_format}}"
+                            ax.text(x_label_pos, y_label_pos, formatted_value,
+                                   ha='center', va='center', fontsize=8, fontweight='bold',
+                                   color='white')
+                
                 left += np.array(values)
+            
+            # Add total value labels if requested
+            if show_values and show_total:
+                totals = np.sum(series_data, axis=0)
+                for j, (cat_pos, total) in enumerate(zip(x_pos, totals)):
+                    formatted_total = f"{total:{value_format}}"
+                    ax.text(total, cat_pos, formatted_total,
+                           ha='left', va='center', fontsize=9, fontweight='bold')
             
             ax.set_yticks(x_pos)
             ax.set_yticklabels(categories)
@@ -868,8 +975,28 @@ def tool_plot_stacked_bar(
             bottom = np.zeros(len(categories))
             
             for i, (name, values) in enumerate(zip(series_names, series_data)):
-                ax.bar(x_pos, values, bottom=bottom, label=name, color=colors[i])
+                bars = ax.bar(x_pos, values, bottom=bottom, label=name, color=colors[i])
+                
+                # Add segment value labels if requested
+                if show_values and show_segment_values:
+                    for j, (bar, value) in enumerate(zip(bars, values)):
+                        if value > 0:  # Only show if segment has value
+                            x_label_pos = bar.get_x() + bar.get_width() / 2
+                            y_label_pos = bottom[j] + value / 2
+                            formatted_value = f"{value:{value_format}}"
+                            ax.text(x_label_pos, y_label_pos, formatted_value,
+                                   ha='center', va='center', fontsize=8, fontweight='bold',
+                                   color='white')
+                
                 bottom += np.array(values)
+            
+            # Add total value labels if requested
+            if show_values and show_total:
+                totals = np.sum(series_data, axis=0)
+                for j, (cat_pos, total) in enumerate(zip(x_pos, totals)):
+                    formatted_total = f"{total:{value_format}}"
+                    ax.text(cat_pos, total, formatted_total,
+                           ha='center', va='bottom', fontsize=9, fontweight='bold')
             
             ax.set_xticks(x_pos)
             ax.set_xticklabels(categories, rotation=xlabel_rotation, ha='right')
@@ -901,11 +1028,14 @@ def tool_plot_stacked_bar(
         
         # Save to memory buffer
         buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+        if output_format == 'svg':
+            fig.savefig(buf, format='svg', bbox_inches='tight')
+        else:
+            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
-        return _create_image_content(buf)
+        return _create_image_content(buf, format=output_format)
         
     except Exception as e:
         plt.close('all')  # Clean up any figures
@@ -923,6 +1053,7 @@ def tool_plot_ode_solution(
     legend_loc: Annotated[str | None, Field(description="Legend location: 'best', 'upper right', 'upper left', 'lower left', 'lower right', 'right', 'center left', 'center right', 'lower center', 'upper center', 'center', or None to hide.")] = "best",
     linestyles: Annotated[list[str] | None, Field(description="List of linestyle strings ('-', '--', '-.', ':'), one per series. If None, uses solid lines. Cycles if shorter than series count.")] = None,
     secondary_y: Annotated[dict[str, str] | None, Field(description="Dictionary mapping variable names to y-axis labels for secondary axis. Example: {'x': 'Position (m)'}")] = None,
+    output_format: Annotated[str, Field(description="Output image format: 'png' or 'svg'. Defaults to 'png'.")] = 'png',
 ) -> ImageContent:
     """Plot the solution of differential equations from solve_ode tool.
     
@@ -935,6 +1066,10 @@ def tool_plot_ode_solution(
     - ode_result='{"t": [0, 1, 2], "x": [1, 0.5, 0.25], "success": true}'
     """
     try:
+        # Input validation
+        if output_format not in ('png', 'svg'):
+            raise ValueError("output_format must be 'png' or 'svg'")
+        
         # Parse the JSON result
         result = json.loads(ode_result)
         
@@ -1105,11 +1240,14 @@ def tool_plot_ode_solution(
         
         # Save to memory buffer
         buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+        if output_format == 'svg':
+            fig.savefig(buf, format='svg', bbox_inches='tight')
+        else:
+            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
-        return _create_image_content(buf)
+        return _create_image_content(buf, format=output_format)
         
     except json.JSONDecodeError as e:
         plt.close('all')
@@ -1134,6 +1272,7 @@ def tool_plot_stackplot(
     baseline: Annotated[str, Field(description="Baseline for stacking: 'zero' (stack from zero), 'sym' (symmetric around zero), 'wiggle' (minimize wiggle), 'weighted_wiggle'.")] = "zero",
     alpha: Annotated[float, Field(description="Transparency of the filled areas (0.0-1.0).")] = 0.7,
     xlabel_rotation: Annotated[int | float, Field(description="Rotation angle in degrees for x-axis labels (0-90 typical).")] = 45,
+    output_format: Annotated[str, Field(description="Output image format: 'png' or 'svg'. Defaults to 'png'.")] = 'png',
 ) -> ImageContent:
     """Plot a stacked area chart to show composition over a continuous variable.
     
@@ -1149,6 +1288,8 @@ def tool_plot_stackplot(
     """
     try:
         # Input validation
+        if output_format not in ('png', 'svg'):
+            raise ValueError("output_format must be 'png' or 'svg'")
         if not x_data:
             raise ValueError("x_data list cannot be empty")
         if not series:
@@ -1251,11 +1392,14 @@ def tool_plot_stackplot(
         
         # Save to memory buffer
         buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+        if output_format == 'svg':
+            fig.savefig(buf, format='svg', bbox_inches='tight')
+        else:
+            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
-        return _create_image_content(buf)
+        return _create_image_content(buf, format=output_format)
         
     except Exception as e:
         plt.close('all')  # Clean up any figures
@@ -1273,6 +1417,7 @@ def tool_plot_pie_chart(
     explode: Annotated[list[float] | None, Field(description="List of explode values (0-1) to offset slices. If None, no slices are exploded. Example: [0.1, 0, 0, 0.2]")] = None,
     legend_loc: Annotated[str | None, Field(description="Legend location: 'best', 'upper right', 'upper left', 'lower left', 'lower right', 'right', 'center left', 'center right', 'lower center', 'upper center', 'center', or None to hide.")] = "best",
     shadow: Annotated[bool, Field(description="If True, adds shadow effect to the pie chart.")] = False,
+    output_format: Annotated[str, Field(description="Output image format: 'png' or 'svg'. Defaults to 'png'.")] = 'png',
 ) -> ImageContent:
     """Plot a pie chart to show proportional composition of data.
     
@@ -1288,6 +1433,8 @@ def tool_plot_pie_chart(
     """
     try:
         # Input validation
+        if output_format not in ('png', 'svg'):
+            raise ValueError("output_format must be 'png' or 'svg'")
         if not labels:
             raise ValueError("labels list cannot be empty")
         if len(labels) != len(values):
@@ -1362,11 +1509,14 @@ def tool_plot_pie_chart(
         
         # Save to memory buffer
         buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+        if output_format == 'svg':
+            fig.savefig(buf, format='svg', bbox_inches='tight')
+        else:
+            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
-        return _create_image_content(buf)
+        return _create_image_content(buf, format=output_format)
         
     except Exception as e:
         plt.close('all')  # Clean up any figures
