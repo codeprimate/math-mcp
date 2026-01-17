@@ -8,7 +8,7 @@ The Math MCP server provides Cursor and Claude Desktop with powerful symbolic an
 
 ### Available Tools
 
-The server provides 25 tools for mathematical computation:
+The server provides 27 tools for mathematical computation:
 
 | Tool | Purpose | When to Use |
 |------|---------|-------------|
@@ -36,6 +36,8 @@ The server provides 25 tools for mathematical computation:
 | `plot_scatter` | Create scatter plots | Correlation analysis, relationship between variables |
 | `plot_heatmap` | Create heatmaps | 2D patterns, time-based or geographic data |
 | `plot_stacked_bar` | Create stacked bar charts | Multi-series comparison across categories |
+| `plot_stackplot` | Create stacked area charts | Composition over time, part-to-whole trends |
+| `plot_pie_chart` | Create pie charts | Proportional data, percentage breakdowns |
 | `plot_ode_solution` | Plot ODE solutions | Visualize differential equation results |
 
 ### Example Usage
@@ -73,7 +75,9 @@ Once configured, you can ask math questions naturally:
 - **"Plot with no grid lines"** → Uses `grid=False` parameter
 - **"Create a chart with only vertical grid lines"** → Uses `grid='y'` parameter
 - **"Plot this time series with rotated x-axis labels at 90 degrees"** → Uses `xlabel_rotation` parameter
-- **"Create a larger plot, 12 by 8 inches"** → Uses `figsize` parameter to control plot dimensions
+- **"Create a larger plot, 1200 by 800 pixels"** → Uses `figsize` parameter to control plot dimensions (in pixels)
+- **"Plot this time series with values displayed on each point"** → Uses `show_values=True` parameter to display data point values
+- **"Format values as currency with 2 decimals"** → Uses `value_format='$.2f'` parameter for currency formatting
 
 Cursor and Claude Desktop automatically discover all tools and choose the right one based on your question.
 
@@ -559,13 +563,16 @@ The Math MCP server includes powerful plotting tools for data visualization. All
 **1. Time Series (`plot_timeseries`)**
 - Plot metrics over time with multiple series
 - Perfect for: response times, traffic patterns, error rates
+- Features: Display values on data points, currency formatting, secondary y-axis, custom linestyles
 - Example: `timestamps=['2026-01-01T10:00', '2026-01-01T11:00'], series={'cpu': [45, 67], 'memory': [60, 62]}`
+- Example with values: `timestamps=['Q1', 'Q2', 'Q3'], series={'sales': [1000, 1200, 1150]}, show_values=True, value_format='$.0f'`
 
 **2. Bar Charts (`plot_bar_chart`)**
 - Compare values across categories
 - Perfect for: endpoint usage, error counts by type, feature adoption
-- Supports both vertical and horizontal orientations
+- Features: Display values on bars, currency formatting, both vertical and horizontal orientations
 - Example: `categories=['Endpoint A', 'Endpoint B'], values=[1250, 890]`
+- Example with currency: `categories=['Q1', 'Q2'], values=[1000, 1200], value_format='$.0f'`
 
 **3. Histograms (`plot_histogram`)**
 - Visualize data distribution and frequency
@@ -592,7 +599,19 @@ The Math MCP server includes powerful plotting tools for data visualization. All
 - Supports both vertical and horizontal orientations
 - Example: `categories=['Jan', 'Feb'], series={'success': [100, 120], 'error': [10, 8]}`
 
-**7. ODE Solution Plots (`plot_ode_solution`)**
+**7. Stacked Area Charts (`plot_stackplot`)**
+- Show composition of multiple components over a continuous variable
+- Perfect for: revenue breakdown over time, resource usage composition, multi-component trends
+- Supports customizable colors and baseline options
+- Example: `x_data=[0, 1, 2, 3], series={'component_a': [10.5, 12.3, 11.8, 13.2], 'component_b': [5.2, 4.8, 6.1, 5.5]}`
+
+**8. Pie Charts (`plot_pie_chart`)**
+- Display proportional data and percentage breakdowns
+- Perfect for: market share, status code distribution, category proportions
+- Supports slice explosion, custom colors, and percentage display
+- Example: `labels=['Category A', 'Category B', 'Category C'], values=[25.5, 18.9, 32.1]`
+
+**9. ODE Solution Plots (`plot_ode_solution`)**
 - Visualize differential equation solutions
 - Automatically plots all variables from `solve_ode` output
 - Example: `ode_result='{"t": [0, 1, 2], "x": [1, 0.5, 0.25], ...}'`
@@ -622,6 +641,9 @@ You can solve differential equations and immediately visualize the results:
 - **Consistent styling**: Professional appearance with grid lines, labels, and legends
 - **Memory efficient**: Figures are immediately closed after saving
 - **IT-focused**: Designed for operational data visualization
+- **Value display**: Show data point values on charts with customizable formatting (including currency)
+- **Pixel-based sizing**: Figure sizes specified in pixels for consistent display across devices
+- **Format flexibility**: Support for PNG and SVG output formats
 
 ## Examples
 
@@ -734,17 +756,35 @@ Each tool call requires the initialization sequence. Here are examples:
  echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_timeseries","arguments":{"timestamps":["10:00","11:00","12:00","13:00"],"series":{"requests":[100,200,150,180],"temperature":[20.5,21.3,22.1,21.8]},"secondary_y":{"temperature":"Temperature (°C)"},"linestyles":["-","--"],"legend_loc":"upper left"}}}') | \
  docker run -i --rm math-mcp
 
-# Create scatter plot with custom figure size and rotated labels
+# Create scatter plot with custom figure size (in pixels) and rotated labels
 (echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
- echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
- echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_scatter","arguments":{"x_data":[100,200,300,400,500],"y_data":[0.02,0.05,0.03,0.06,0.04],"color":"steelblue","figsize":[12,8],"title":"Traffic vs Error Rate","xlabel":"Requests per second","ylabel":"Error Rate"}}}') | \
- docker run -i --rm math-mcp
+echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_scatter","arguments":{"x_data":[100,200,300,400,500],"y_data":[0.02,0.05,0.03,0.06,0.04],"color":"steelblue","figsize":[1200,800],"title":"Traffic vs Error Rate","xlabel":"Requests per second","ylabel":"Error Rate"}}}') | \
+docker run -i --rm math-mcp
+
+# Plot time series with values displayed on each point and currency formatting
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_timeseries","arguments":{"timestamps":["Q1","Q2","Q3"],"series":{"sales":[1000,1200,1150]},"show_values":true,"value_format":"$.0f","title":"Quarterly Sales"}}}') | \
+docker run -i --rm math-mcp
 
 # Plot stacked bar chart with custom colors and legend
 (echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
- echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
- echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_stacked_bar","arguments":{"categories":["Jan","Feb","Mar"],"series":{"success":[100,120,110],"error":[10,8,12],"warning":[5,3,4]},"colors":["green","red","orange"],"legend_loc":"upper right","xlabel_rotation":0}}}') | \
- docker run -i --rm math-mcp
+echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_stacked_bar","arguments":{"categories":["Jan","Feb","Mar"],"series":{"success":[100,120,110],"error":[10,8,12],"warning":[5,3,4]},"colors":["green","red","orange"],"legend_loc":"upper right","xlabel_rotation":0}}}') | \
+docker run -i --rm math-mcp
+
+# Create stacked area chart showing composition over time
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_stackplot","arguments":{"x_data":["Q1","Q2","Q3","Q4"],"series":{"product_x":[100,120,110,130],"product_y":[80,90,95,100]},"title":"Revenue by Product"}}}') | \
+docker run -i --rm math-mcp
+
+# Create pie chart with percentage display and custom colors
+(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
+echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_pie_chart","arguments":{"labels":["Category A","Category B","Category C"],"values":[25.5,18.9,32.1],"title":"Distribution","colors":["steelblue","coral","lightgreen"]}}}') | \
+docker run -i --rm math-mcp
 ```
 
 **Note:** For local Python usage, replace `docker run -i --rm math-mcp` with `python -m math_mcp.server`.

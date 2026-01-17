@@ -8,6 +8,7 @@ from typing import Annotated
 import matplotlib
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import numpy as np
 from mcp.types import ImageContent
 from pydantic import Field
@@ -15,6 +16,28 @@ from pydantic import Field
 # Use non-interactive backend for server use
 matplotlib.use('Agg')
 
+# Font size constants
+VALUE_LABEL_FONTSIZE = 8
+AXIS_LABEL_FONTSIZE = 12
+TITLE_FONTSIZE = 14
+ANNOTATION_FONTSIZE = 10
+
+# Figure size constants (in pixels)
+FIGURE_DPI = 100
+DEFAULT_FIGSIZE_PX = (1000, 600)  # Default figure size in pixels (width, height)
+DEFAULT_FIGSIZE_LARGE_PX = (1000, 800)  # Default for heatmaps and pie charts
+
+def _pixels_to_inches(size_px: tuple[int, int], dpi: int = FIGURE_DPI) -> tuple[float, float]:
+    """Convert figure size from pixels to inches for matplotlib.
+    
+    Args:
+        size_px: Tuple of (width, height) in pixels
+        dpi: Dots per inch (default: FIGURE_DPI)
+        
+    Returns:
+        Tuple of (width, height) in inches
+    """
+    return (size_px[0] / dpi, size_px[1] / dpi)
 
 def _create_image_content(buf: io.BytesIO, format: str = 'png') -> ImageContent:
     """Helper to create ImageContent from BytesIO buffer.
@@ -119,6 +142,58 @@ def _hsv_distance(hsv1: tuple[float, float, float], hsv2: tuple[float, float, fl
     return np.sqrt(h_diff**2 + s_diff**2 + v_diff**2)
 
 
+def _normalize_format_string(format_str: str) -> str:
+    """Normalize format string by removing leading/trailing quotes.
+    
+    Handles cases where format strings are passed with extra quotes,
+    e.g., "',.0f'" -> ",.0f" or "',d'" -> ",d"
+    
+    Args:
+        format_str: Format string that may have extra quotes
+        
+    Returns:
+        Normalized format string without extra quotes
+    """
+    # Remove leading and trailing single or double quotes
+    format_str = format_str.strip()
+    if (format_str.startswith("'") and format_str.endswith("'")) or \
+       (format_str.startswith('"') and format_str.endswith('"')):
+        format_str = format_str[1:-1]
+    return format_str
+
+
+def _normalize_grid_parameter(grid: bool | str) -> bool | str:
+    """Normalize grid parameter to handle string "true"/"false".
+    
+    Args:
+        grid: Grid parameter (bool, str "true"/"false", or str "x"/"y"/"both")
+        
+    Returns:
+        Normalized grid parameter (bool or str)
+    """
+    if isinstance(grid, str):
+        grid_lower = grid.lower()
+        if grid_lower == "true":
+            return True
+        elif grid_lower == "false":
+            return False
+    return grid
+
+
+def _format_value(value: float, format_str: str) -> str:
+    """Format a numeric value using Python format specifier.
+    
+    Supports standard formats (e.g., '.2f') and currency ('$.2f' -> '$1234.56').
+    Matplotlib only accepts strings, so we format here before passing to ax.text().
+    """
+    # Normalize format string to handle cases with extra quotes
+    format_str = _normalize_format_string(format_str)
+    
+    if format_str.startswith('$'):
+        return f"${value:{format_str[1:]}}"
+    return f"{value:{format_str}}"
+
+
 def _pad_colors_with_hsv_distance(provided_colors: list[str], num_needed: int) -> list[str]:
     """Pad color list using HSV distance to avoid similar colors.
     
@@ -190,7 +265,7 @@ def tool_plot_timeseries(
     title: Annotated[str | None, Field(description="Title for the plot. If None, no title is displayed.")] = None,
     xlabel: Annotated[str, Field(description="Label for the x-axis.")] = "Time",
     ylabel: Annotated[str, Field(description="Label for the y-axis.")] = "Value",
-    figsize: Annotated[tuple[int, int], Field(description="Figure size in inches as (width, height).")] = (10, 6),
+    figsize: Annotated[tuple[int, int], Field(description="Figure size in pixels as (width, height).")] = DEFAULT_FIGSIZE_PX,
     colors: Annotated[list[str] | None, Field(description="List of named colors or hex values. If None, uses tab10 palette (excluding yellow). If provided but shorter than series count, pads with unused tab10 colors using HSV distance.")] = None,
     xlim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for x-axis limits. If None, uses matplotlib auto-scaling.")] = None,
     ylim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for y-axis limits. If None, uses matplotlib auto-scaling.")] = None,
@@ -199,6 +274,8 @@ def tool_plot_timeseries(
     linestyles: Annotated[list[str] | None, Field(description="List of linestyle strings ('-', '--', '-.', ':'), one per series. If None, uses solid lines. Cycles if shorter than series count.")] = None,
     secondary_y: Annotated[dict[str, str] | None, Field(description="Dictionary mapping series names to y-axis labels for secondary axis. Example: {'temperature': 'Temperature (°C)'}")] = None,
     xlabel_rotation: Annotated[int | float, Field(description="Rotation angle in degrees for x-axis labels (0-90 typical).")] = 45,
+    show_values: Annotated[bool, Field(description="If True, display the value of each data point on the line chart.")] = False,
+    value_format: Annotated[str, Field(description="Python format specifier. Examples: 'd' (integers), '.1f' (1 decimal), '.2f' (2 decimals), '$.2f' (currency).")] = '.1f',
     output_format: Annotated[str, Field(description="Output image format: 'png' or 'svg'. Defaults to 'png'.")] = 'png',
 ) -> ImageContent:
     """Plot time-series data with multiple series.
@@ -212,6 +289,7 @@ def tool_plot_timeseries(
     Examples:
     - timestamps=['2026-01-01T10:00', '2026-01-01T11:00'], series={'temperature': [20.5, 21.3]}
     - timestamps=['0', '1', '2', '3'], series={'signal_a': [1.2, 2.1, 1.9, 2.3], 'signal_b': [3.1, 2.8, 3.2, 2.9]}
+    - timestamps=['Q1', 'Q2', 'Q3'], series={'sales': [100, 120, 115]}, show_values=True, value_format='.0f'
     """
     try:
         # Input validation
@@ -238,7 +316,8 @@ def tool_plot_timeseries(
             if len(ylim) != 2 or ylim[0] >= ylim[1]:
                 raise ValueError("ylim must be a tuple (min, max) where min < max")
         
-        # Validate grid parameter
+        # Normalize and validate grid parameter
+        grid = _normalize_grid_parameter(grid)
         valid_grid_values = {True, False, "x", "y", "both"}
         if grid not in valid_grid_values:
             raise ValueError(f"grid must be one of {valid_grid_values}")
@@ -257,6 +336,17 @@ def tool_plot_timeseries(
             for series_name in secondary_y.keys():
                 if series_name not in series:
                     raise ValueError(f"secondary_y key '{series_name}' not found in series dictionary")
+        
+        # Normalize and validate value_format if show_values is True
+        if show_values:
+            # Normalize format string to remove extra quotes
+            value_format = _normalize_format_string(value_format)
+            try:
+                # Test the format string with a sample value
+                test_value = 123.456
+                _format_value(test_value, value_format)
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Invalid value_format '{value_format}': {str(e)}")
         
         # Handle colors
         if colors is not None:
@@ -283,8 +373,8 @@ def tool_plot_timeseries(
                 linestyles_list.extend(linestyles)
             linestyles_list = linestyles_list[:num_series]
         
-        # Create figure
-        fig, ax = plt.subplots(figsize=figsize)
+        # Create figure (convert pixels to inches)
+        fig, ax = plt.subplots(figsize=_pixels_to_inches(figsize))
         
         # Determine which series go on primary vs secondary axis
         primary_series = {}
@@ -321,10 +411,43 @@ def tool_plot_timeseries(
             if secondary_names:
                 # Use the label from secondary_y dict, or combine if multiple
                 if len(secondary_names) == 1:
-                    ax2.set_ylabel(secondary_y[secondary_names[0]], fontsize=12)
+                    ax2.set_ylabel(secondary_y[secondary_names[0]], fontsize=AXIS_LABEL_FONTSIZE)
                 else:
                     # Multiple series on secondary axis - use combined label or first
-                    ax2.set_ylabel(secondary_y[secondary_names[0]], fontsize=12)
+                    ax2.set_ylabel(secondary_y[secondary_names[0]], fontsize=AXIS_LABEL_FONTSIZE)
+        
+        # Add value labels if requested
+        if show_values:
+            x_positions = range(len(timestamps))
+            
+            # Add labels for primary axis series
+            for name, values in primary_series.items():
+                for x_pos, value in zip(x_positions, values):
+                    formatted_value = _format_value(value, value_format)
+                    # Place label above the point with a small offset
+                    ax.text(x_pos, value, formatted_value,
+                           ha='center', va='bottom', fontsize=VALUE_LABEL_FONTSIZE, fontweight='bold',
+                           bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='none'))
+            
+            # Add labels for secondary axis series
+            if ax2 is not None:
+                for name, values in secondary_series.items():
+                    for x_pos, value in zip(x_positions, values):
+                        formatted_value = _format_value(value, value_format)
+                        # Place label above the point with a small offset
+                        ax2.text(x_pos, value, formatted_value,
+                               ha='center', va='bottom', fontsize=VALUE_LABEL_FONTSIZE, fontweight='bold',
+                               bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='none'))
+            
+            # Apply same formatting to axis labels as value labels
+            def axis_formatter(x, pos):
+                """Format axis tick labels using the same format as value labels."""
+                return _format_value(x, value_format)
+            
+            # Format the y-axis (which shows values)
+            ax.yaxis.set_major_formatter(ticker.FuncFormatter(axis_formatter))
+            if ax2 is not None:
+                ax2.yaxis.set_major_formatter(ticker.FuncFormatter(axis_formatter))
         
         # Set x-axis labels with rotation
         ax.set_xticks(range(len(timestamps)))
@@ -337,10 +460,10 @@ def tool_plot_timeseries(
             ax.set_ylim(ylim)
         
         # Styling
-        ax.set_xlabel(xlabel, fontsize=12)
-        ax.set_ylabel(ylabel, fontsize=12)
+        ax.set_xlabel(xlabel, fontsize=AXIS_LABEL_FONTSIZE)
+        ax.set_ylabel(ylabel, fontsize=AXIS_LABEL_FONTSIZE)
         if title:
-            ax.set_title(title, fontsize=14, fontweight='bold')
+            ax.set_title(title, fontsize=TITLE_FONTSIZE, fontweight='bold')
         
         # Grid control
         if grid is True or grid == "both":
@@ -368,7 +491,7 @@ def tool_plot_timeseries(
         if output_format == 'svg':
             fig.savefig(buf, format='svg', bbox_inches='tight')
         else:
-            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+            fig.savefig(buf, format='png', dpi=FIGURE_DPI, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
@@ -386,14 +509,14 @@ def tool_plot_bar_chart(
     xlabel: Annotated[str, Field(description="Label for the x-axis (or y-axis if horizontal=True).")] = "Category",
     ylabel: Annotated[str, Field(description="Label for the y-axis (or x-axis if horizontal=True).")] = "Value",
     horizontal: Annotated[bool, Field(description="If True, create horizontal bars instead of vertical.")] = False,
-    figsize: Annotated[tuple[int, int], Field(description="Figure size in inches as (width, height).")] = (10, 6),
+    figsize: Annotated[tuple[int, int], Field(description="Figure size in pixels as (width, height).")] = DEFAULT_FIGSIZE_PX,
     color: Annotated[str | None, Field(description="Named color (e.g., 'steelblue') or hex (e.g., '#FF5733'). If None, uses 'steelblue'.")] = None,
     xlim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for x-axis limits. If None, uses matplotlib auto-scaling.")] = None,
     ylim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for y-axis limits. If None, uses matplotlib auto-scaling.")] = None,
     grid: Annotated[bool | str, Field(description="Grid control: True (both axes), False (hide), 'x' (x-axis only), 'y' (y-axis only), 'both' (both axes).")] = True,
     xlabel_rotation: Annotated[int | float, Field(description="Rotation angle in degrees for x-axis labels (0-90 typical).")] = 45,
     show_values: Annotated[bool, Field(description="If True, display the value of each bar on top of (or next to) the bar.")] = True,
-    value_format: Annotated[str, Field(description="Format string for displaying values (e.g., '.1f' for 1 decimal, '.0f' for integers, '.2f' for 2 decimals).")] = '.1f',
+    value_format: Annotated[str, Field(description="Python format specifier. Examples: 'd' (integers), '.1f' (1 decimal), '.2f' (2 decimals), '$.2f' (currency).")] = '.1f',
     output_format: Annotated[str, Field(description="Output image format: 'png' or 'svg'. Defaults to 'png'.")] = 'png',
 ) -> ImageContent:
     """Plot a bar chart comparing categorical data.
@@ -426,17 +549,20 @@ def tool_plot_bar_chart(
             if len(ylim) != 2 or ylim[0] >= ylim[1]:
                 raise ValueError("ylim must be a tuple (min, max) where min < max")
         
-        # Validate grid parameter
+        # Normalize and validate grid parameter
+        grid = _normalize_grid_parameter(grid)
         valid_grid_values = {True, False, "x", "y", "both"}
         if grid not in valid_grid_values:
             raise ValueError(f"grid must be one of {valid_grid_values}")
         
-        # Validate value_format if show_values is True
+        # Normalize and validate value_format if show_values is True
         if show_values:
+            # Normalize format string to remove extra quotes
+            value_format = _normalize_format_string(value_format)
             try:
                 # Test the format string with a sample value
                 test_value = 123.456
-                f"{test_value:{value_format}}"
+                _format_value(test_value, value_format)
             except (ValueError, TypeError) as e:
                 raise ValueError(f"Invalid value_format '{value_format}': {str(e)}")
         
@@ -446,18 +572,18 @@ def tool_plot_bar_chart(
         else:
             _validate_color(color)
         
-        # Create figure
-        fig, ax = plt.subplots(figsize=figsize)
+        # Create figure (convert pixels to inches)
+        fig, ax = plt.subplots(figsize=_pixels_to_inches(figsize))
         
         # Plot bars
         if horizontal:
             bars = ax.barh(categories, values, color=color)
-            ax.set_ylabel(xlabel, fontsize=12)
-            ax.set_xlabel(ylabel, fontsize=12)
+            ax.set_ylabel(xlabel, fontsize=AXIS_LABEL_FONTSIZE)
+            ax.set_xlabel(ylabel, fontsize=AXIS_LABEL_FONTSIZE)
         else:
             bars = ax.bar(categories, values, color=color)
-            ax.set_xlabel(xlabel, fontsize=12)
-            ax.set_ylabel(ylabel, fontsize=12)
+            ax.set_xlabel(xlabel, fontsize=AXIS_LABEL_FONTSIZE)
+            ax.set_ylabel(ylabel, fontsize=AXIS_LABEL_FONTSIZE)
             # Rotate x-axis labels
             plt.xticks(rotation=xlabel_rotation, ha='right')
         
@@ -465,20 +591,32 @@ def tool_plot_bar_chart(
         if show_values:
             for i, (bar, value) in enumerate(zip(bars, values)):
                 # Format the value
-                formatted_value = f"{value:{value_format}}"
+                formatted_value = _format_value(value, value_format)
                 
                 if horizontal:
                     # For horizontal bars, place text to the right of the bar
                     x_pos = value
                     y_pos = bar.get_y() + bar.get_height() / 2
                     ax.text(x_pos, y_pos, formatted_value,
-                           ha='left', va='center', fontsize=9, fontweight='bold')
+                           ha='left', va='center', fontsize=VALUE_LABEL_FONTSIZE, fontweight='bold')
                 else:
                     # For vertical bars, place text on top of the bar
                     x_pos = bar.get_x() + bar.get_width() / 2
                     y_pos = bar.get_height()
                     ax.text(x_pos, y_pos, formatted_value,
-                           ha='center', va='bottom', fontsize=9, fontweight='bold')
+                           ha='center', va='bottom', fontsize=VALUE_LABEL_FONTSIZE, fontweight='bold')
+        
+        # Apply same formatting to axis labels as bar labels
+        def axis_formatter(x, pos):
+            """Format axis tick labels using the same format as bar labels."""
+            return _format_value(x, value_format)
+        
+        if horizontal:
+            # For horizontal bars, format the x-axis (which shows values)
+            ax.xaxis.set_major_formatter(ticker.FuncFormatter(axis_formatter))
+        else:
+            # For vertical bars, format the y-axis (which shows values)
+            ax.yaxis.set_major_formatter(ticker.FuncFormatter(axis_formatter))
         
         # Set axis limits
         if xlim is not None:
@@ -488,7 +626,7 @@ def tool_plot_bar_chart(
         
         # Styling
         if title:
-            ax.set_title(title, fontsize=14, fontweight='bold')
+            ax.set_title(title, fontsize=TITLE_FONTSIZE, fontweight='bold')
         
         # Grid control
         if grid is True or grid == "both":
@@ -504,7 +642,7 @@ def tool_plot_bar_chart(
         if output_format == 'svg':
             fig.savefig(buf, format='svg', bbox_inches='tight')
         else:
-            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+            fig.savefig(buf, format='png', dpi=FIGURE_DPI, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
@@ -521,7 +659,7 @@ def tool_plot_histogram(
     title: Annotated[str | None, Field(description="Title for the plot. If None, no title is displayed.")] = None,
     xlabel: Annotated[str, Field(description="Label for the x-axis.")] = "Value",
     ylabel: Annotated[str, Field(description="Label for the y-axis.")] = "Frequency",
-    figsize: Annotated[tuple[int, int], Field(description="Figure size in inches as (width, height).")] = (10, 6),
+    figsize: Annotated[tuple[int, int], Field(description="Figure size in pixels as (width, height).")] = DEFAULT_FIGSIZE_PX,
     color: Annotated[str | None, Field(description="Named color (e.g., 'steelblue') or hex (e.g., '#FF5733'). If None, uses 'steelblue'.")] = None,
     xlim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for x-axis limits. If None, uses matplotlib auto-scaling.")] = None,
     ylim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for y-axis limits. If None, uses matplotlib auto-scaling.")] = None,
@@ -557,7 +695,8 @@ def tool_plot_histogram(
             if len(ylim) != 2 or ylim[0] >= ylim[1]:
                 raise ValueError("ylim must be a tuple (min, max) where min < max")
         
-        # Validate grid parameter
+        # Normalize and validate grid parameter
+        grid = _normalize_grid_parameter(grid)
         valid_grid_values = {True, False, "x", "y", "both"}
         if grid not in valid_grid_values:
             raise ValueError(f"grid must be one of {valid_grid_values}")
@@ -568,8 +707,8 @@ def tool_plot_histogram(
         else:
             _validate_color(color)
         
-        # Create figure
-        fig, ax = plt.subplots(figsize=figsize)
+        # Create figure (convert pixels to inches)
+        fig, ax = plt.subplots(figsize=_pixels_to_inches(figsize))
         
         # Plot histogram
         n, bins_edges, patches = ax.hist(data, bins=bins, color=color, edgecolor='black', alpha=0.7)
@@ -581,10 +720,10 @@ def tool_plot_histogram(
             ax.set_ylim(ylim)
         
         # Styling
-        ax.set_xlabel(xlabel, fontsize=12)
-        ax.set_ylabel(ylabel, fontsize=12)
+        ax.set_xlabel(xlabel, fontsize=AXIS_LABEL_FONTSIZE)
+        ax.set_ylabel(ylabel, fontsize=AXIS_LABEL_FONTSIZE)
         if title:
-            ax.set_title(title, fontsize=14, fontweight='bold')
+            ax.set_title(title, fontsize=TITLE_FONTSIZE, fontweight='bold')
         
         # Grid control
         if grid is True or grid == "both":
@@ -603,14 +742,14 @@ def tool_plot_histogram(
         ax.text(0.98, 0.97, stats_text, transform=ax.transAxes,
                 verticalalignment='top', horizontalalignment='right',
                 bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5),
-                fontsize=10)
+                fontsize=ANNOTATION_FONTSIZE)
         
         # Save to memory buffer
         buf = io.BytesIO()
         if output_format == 'svg':
             fig.savefig(buf, format='svg', bbox_inches='tight')
         else:
-            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+            fig.savefig(buf, format='png', dpi=FIGURE_DPI, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
@@ -628,7 +767,7 @@ def tool_plot_scatter(
     title: Annotated[str | None, Field(description="Title for the plot. If None, no title is displayed.")] = None,
     xlabel: Annotated[str, Field(description="Label for the x-axis.")] = "X",
     ylabel: Annotated[str, Field(description="Label for the y-axis.")] = "Y",
-    figsize: Annotated[tuple[int, int], Field(description="Figure size in inches as (width, height).")] = (10, 6),
+    figsize: Annotated[tuple[int, int], Field(description="Figure size in pixels as (width, height).")] = DEFAULT_FIGSIZE_PX,
     color: Annotated[str | None, Field(description="Named color (e.g., 'steelblue') or hex (e.g., '#FF5733'). If None, uses 'steelblue'.")] = None,
     xlim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for x-axis limits. If None, uses matplotlib auto-scaling.")] = None,
     ylim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for y-axis limits. If None, uses matplotlib auto-scaling.")] = None,
@@ -666,7 +805,8 @@ def tool_plot_scatter(
             if len(ylim) != 2 or ylim[0] >= ylim[1]:
                 raise ValueError("ylim must be a tuple (min, max) where min < max")
         
-        # Validate grid parameter
+        # Normalize and validate grid parameter
+        grid = _normalize_grid_parameter(grid)
         valid_grid_values = {True, False, "x", "y", "both"}
         if grid not in valid_grid_values:
             raise ValueError(f"grid must be one of {valid_grid_values}")
@@ -677,8 +817,8 @@ def tool_plot_scatter(
         else:
             _validate_color(color)
         
-        # Create figure
-        fig, ax = plt.subplots(figsize=figsize)
+        # Create figure (convert pixels to inches)
+        fig, ax = plt.subplots(figsize=_pixels_to_inches(figsize))
         
         # Plot scatter
         scatter = ax.scatter(x_data, y_data, s=100, alpha=0.6, c=color, edgecolors='black', linewidth=1)
@@ -688,7 +828,7 @@ def tool_plot_scatter(
             for i, label in enumerate(labels):
                 ax.annotate(label, (x_data[i], y_data[i]), 
                            xytext=(5, 5), textcoords='offset points',
-                           fontsize=9, alpha=0.8)
+                           fontsize=VALUE_LABEL_FONTSIZE, alpha=0.8)
         
         # Set axis limits
         if xlim is not None:
@@ -697,10 +837,10 @@ def tool_plot_scatter(
             ax.set_ylim(ylim)
         
         # Styling
-        ax.set_xlabel(xlabel, fontsize=12)
-        ax.set_ylabel(ylabel, fontsize=12)
+        ax.set_xlabel(xlabel, fontsize=AXIS_LABEL_FONTSIZE)
+        ax.set_ylabel(ylabel, fontsize=AXIS_LABEL_FONTSIZE)
         if title:
-            ax.set_title(title, fontsize=14, fontweight='bold')
+            ax.set_title(title, fontsize=TITLE_FONTSIZE, fontweight='bold')
         
         # Grid control
         if grid is True or grid == "both":
@@ -718,14 +858,14 @@ def tool_plot_scatter(
                    transform=ax.transAxes,
                    verticalalignment='top',
                    bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5),
-                   fontsize=10)
+                   fontsize=ANNOTATION_FONTSIZE)
         
         # Save to memory buffer
         buf = io.BytesIO()
         if output_format == 'svg':
             fig.savefig(buf, format='svg', bbox_inches='tight')
         else:
-            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+            fig.savefig(buf, format='png', dpi=FIGURE_DPI, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
@@ -742,7 +882,7 @@ def tool_plot_heatmap(
     y_labels: Annotated[list[str] | None, Field(description="Labels for y-axis (rows). If None, uses indices. Example: ['Row 1', 'Row 2', 'Row 3', 'Row 4']")] = None,
     title: Annotated[str | None, Field(description="Title for the plot. If None, no title is displayed.")] = None,
     colormap: Annotated[str, Field(description="Matplotlib colormap name.")] = "viridis",
-    figsize: Annotated[tuple[int, int], Field(description="Figure size in inches as (width, height).")] = (10, 8),
+    figsize: Annotated[tuple[int, int], Field(description="Figure size in pixels as (width, height).")] = DEFAULT_FIGSIZE_LARGE_PX,
     grid: Annotated[bool | str, Field(description="Grid control: True (both axes), False (hide), 'x' (x-axis only), 'y' (y-axis only), 'both' (both axes).")] = True,
     xlabel_rotation: Annotated[int | float, Field(description="Rotation angle in degrees for x-axis labels (0-90 typical).")] = 45,
     output_format: Annotated[str, Field(description="Output image format: 'png' or 'svg'. Defaults to 'png'.")] = 'png',
@@ -781,17 +921,18 @@ def tool_plot_heatmap(
         if y_labels is not None and len(y_labels) != n_rows:
             raise ValueError(f"y_labels has {len(y_labels)} items but data has {n_rows} rows")
         
-        # Create figure
-        fig, ax = plt.subplots(figsize=figsize)
+        # Create figure (convert pixels to inches)
+        fig, ax = plt.subplots(figsize=_pixels_to_inches(figsize))
         
         # Plot heatmap
         im = ax.imshow(data_array, cmap=colormap, aspect='auto')
         
         # Add colorbar
         cbar = plt.colorbar(im, ax=ax)
-        cbar.ax.tick_params(labelsize=10)
+        cbar.ax.tick_params(labelsize=ANNOTATION_FONTSIZE)
         
-        # Validate grid parameter
+        # Normalize and validate grid parameter
+        grid = _normalize_grid_parameter(grid)
         valid_grid_values = {True, False, "x", "y", "both"}
         if grid not in valid_grid_values:
             raise ValueError(f"grid must be one of {valid_grid_values}")
@@ -811,7 +952,7 @@ def tool_plot_heatmap(
         
         # Styling
         if title:
-            ax.set_title(title, fontsize=14, fontweight='bold')
+            ax.set_title(title, fontsize=TITLE_FONTSIZE, fontweight='bold')
         
         # Grid control
         if grid is True or grid == "both":
@@ -827,14 +968,14 @@ def tool_plot_heatmap(
             for i in range(n_rows):
                 for j in range(n_cols):
                     text = ax.text(j, i, f'{data_array[i, j]:.1f}',
-                                 ha="center", va="center", color="w", fontsize=8)
+                                 ha="center", va="center", color="w", fontsize=VALUE_LABEL_FONTSIZE)
         
         # Save to memory buffer
         buf = io.BytesIO()
         if output_format == 'svg':
             fig.savefig(buf, format='svg', bbox_inches='tight')
         else:
-            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+            fig.savefig(buf, format='png', dpi=FIGURE_DPI, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
@@ -852,7 +993,7 @@ def tool_plot_stacked_bar(
     xlabel: Annotated[str, Field(description="Label for the x-axis (or y-axis if horizontal=True).")] = "Category",
     ylabel: Annotated[str, Field(description="Label for the y-axis (or x-axis if horizontal=True).")] = "Value",
     horizontal: Annotated[bool, Field(description="If True, create horizontal stacked bars instead of vertical.")] = False,
-    figsize: Annotated[tuple[int, int], Field(description="Figure size in inches as (width, height).")] = (10, 6),
+    figsize: Annotated[tuple[int, int], Field(description="Figure size in pixels as (width, height).")] = DEFAULT_FIGSIZE_PX,
     colors: Annotated[list[str] | None, Field(description="List of named colors or hex values. If None, uses tab10 palette (excluding yellow). If provided but shorter than series count, pads with unused tab10 colors using HSV distance.")] = None,
     xlim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for x-axis limits. If None, uses matplotlib auto-scaling.")] = None,
     ylim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for y-axis limits. If None, uses matplotlib auto-scaling.")] = None,
@@ -862,7 +1003,7 @@ def tool_plot_stacked_bar(
     show_values: Annotated[bool, Field(description="If True, display values on the stacked bars. Can show segment values, total values, or both depending on show_segment_values and show_total.")] = True,
     show_segment_values: Annotated[bool, Field(description="If True and show_values=True, display individual segment values within each bar segment.")] = False,
     show_total: Annotated[bool, Field(description="If True and show_values=True, display the total value on top of (or next to) each stacked bar.")] = True,
-    value_format: Annotated[str, Field(description="Format string for displaying values (e.g., '.1f' for 1 decimal, '.0f' for integers, '.2f' for 2 decimals).")] = '.1f',
+    value_format: Annotated[str, Field(description="Python format specifier. Examples: 'd' (integers), '.1f' (1 decimal), '.2f' (2 decimals), '$.2f' (currency).")] = '.2f',
     output_format: Annotated[str, Field(description="Output image format: 'png' or 'svg'. Defaults to 'png'.")] = 'png',
 ) -> ImageContent:
     """Plot a stacked bar chart to show composition of totals across categories.
@@ -900,17 +1041,20 @@ def tool_plot_stacked_bar(
             if len(ylim) != 2 or ylim[0] >= ylim[1]:
                 raise ValueError("ylim must be a tuple (min, max) where min < max")
         
-        # Validate grid parameter
+        # Normalize and validate grid parameter
+        grid = _normalize_grid_parameter(grid)
         valid_grid_values = {True, False, "x", "y", "both"}
         if grid not in valid_grid_values:
             raise ValueError(f"grid must be one of {valid_grid_values}")
         
-        # Validate value_format if show_values is True
+        # Normalize and validate value_format if show_values is True
         if show_values:
+            # Normalize format string to remove extra quotes
+            value_format = _normalize_format_string(value_format)
             try:
                 # Test the format string with a sample value
                 test_value = 123.456
-                f"{test_value:{value_format}}"
+                _format_value(test_value, value_format)
             except (ValueError, TypeError) as e:
                 raise ValueError(f"Invalid value_format '{value_format}': {str(e)}")
         
@@ -931,8 +1075,8 @@ def tool_plot_stacked_bar(
             # Cycle if needed
             colors = [tab10_colors[i % len(tab10_colors)] for i in range(num_series)]
         
-        # Create figure
-        fig, ax = plt.subplots(figsize=figsize)
+        # Create figure (convert pixels to inches)
+        fig, ax = plt.subplots(figsize=_pixels_to_inches(figsize))
         
         # Prepare data for stacking
         series_data = [series[name] for name in series_names]
@@ -951,9 +1095,9 @@ def tool_plot_stacked_bar(
                         if value > 0:  # Only show if segment has value
                             x_label_pos = left[j] + value / 2
                             y_label_pos = bar.get_y() + bar.get_height() / 2
-                            formatted_value = f"{value:{value_format}}"
+                            formatted_value = _format_value(value, value_format)
                             ax.text(x_label_pos, y_label_pos, formatted_value,
-                                   ha='center', va='center', fontsize=8, fontweight='bold',
+                                   ha='center', va='center', fontsize=VALUE_LABEL_FONTSIZE, fontweight='bold',
                                    color='white')
                 
                 left += np.array(values)
@@ -962,14 +1106,14 @@ def tool_plot_stacked_bar(
             if show_values and show_total:
                 totals = np.sum(series_data, axis=0)
                 for j, (cat_pos, total) in enumerate(zip(x_pos, totals)):
-                    formatted_total = f"{total:{value_format}}"
+                    formatted_total = _format_value(total, value_format)
                     ax.text(total, cat_pos, formatted_total,
-                           ha='left', va='center', fontsize=9, fontweight='bold')
+                           ha='left', va='center', fontsize=VALUE_LABEL_FONTSIZE, fontweight='bold')
             
             ax.set_yticks(x_pos)
             ax.set_yticklabels(categories)
-            ax.set_ylabel(xlabel, fontsize=12)
-            ax.set_xlabel(ylabel, fontsize=12)
+            ax.set_ylabel(xlabel, fontsize=AXIS_LABEL_FONTSIZE)
+            ax.set_xlabel(ylabel, fontsize=AXIS_LABEL_FONTSIZE)
         else:
             x_pos = np.arange(len(categories))
             bottom = np.zeros(len(categories))
@@ -983,9 +1127,9 @@ def tool_plot_stacked_bar(
                         if value > 0:  # Only show if segment has value
                             x_label_pos = bar.get_x() + bar.get_width() / 2
                             y_label_pos = bottom[j] + value / 2
-                            formatted_value = f"{value:{value_format}}"
+                            formatted_value = _format_value(value, value_format)
                             ax.text(x_label_pos, y_label_pos, formatted_value,
-                                   ha='center', va='center', fontsize=8, fontweight='bold',
+                                   ha='center', va='center', fontsize=VALUE_LABEL_FONTSIZE, fontweight='bold',
                                    color='white')
                 
                 bottom += np.array(values)
@@ -994,14 +1138,14 @@ def tool_plot_stacked_bar(
             if show_values and show_total:
                 totals = np.sum(series_data, axis=0)
                 for j, (cat_pos, total) in enumerate(zip(x_pos, totals)):
-                    formatted_total = f"{total:{value_format}}"
+                    formatted_total = _format_value(total, value_format)
                     ax.text(cat_pos, total, formatted_total,
-                           ha='center', va='bottom', fontsize=9, fontweight='bold')
+                           ha='center', va='bottom', fontsize=VALUE_LABEL_FONTSIZE, fontweight='bold')
             
             ax.set_xticks(x_pos)
             ax.set_xticklabels(categories, rotation=xlabel_rotation, ha='right')
-            ax.set_xlabel(xlabel, fontsize=12)
-            ax.set_ylabel(ylabel, fontsize=12)
+            ax.set_xlabel(xlabel, fontsize=AXIS_LABEL_FONTSIZE)
+            ax.set_ylabel(ylabel, fontsize=AXIS_LABEL_FONTSIZE)
         
         # Set axis limits
         if xlim is not None:
@@ -1011,7 +1155,7 @@ def tool_plot_stacked_bar(
         
         # Styling
         if title:
-            ax.set_title(title, fontsize=14, fontweight='bold')
+            ax.set_title(title, fontsize=TITLE_FONTSIZE, fontweight='bold')
         
         # Legend
         if legend_loc is not None:
@@ -1031,7 +1175,7 @@ def tool_plot_stacked_bar(
         if output_format == 'svg':
             fig.savefig(buf, format='svg', bbox_inches='tight')
         else:
-            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+            fig.savefig(buf, format='png', dpi=FIGURE_DPI, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
@@ -1045,7 +1189,7 @@ def tool_plot_stacked_bar(
 def tool_plot_ode_solution(
     ode_result: Annotated[str, Field(description="JSON string output from the solve_ode tool. Must contain 't' (time points) and variable arrays.")],
     title: Annotated[str | None, Field(description="Title for the plot. If None, uses 'ODE Solution'.")] = None,
-    figsize: Annotated[tuple[int, int], Field(description="Figure size in inches as (width, height).")] = (10, 6),
+    figsize: Annotated[tuple[int, int], Field(description="Figure size in pixels as (width, height).")] = DEFAULT_FIGSIZE_PX,
     colors: Annotated[list[str] | None, Field(description="List of named colors or hex values. If None, uses tab10 palette (excluding yellow). If provided but shorter than series count, pads with unused tab10 colors using HSV distance.")] = None,
     xlim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for x-axis limits. If None, uses matplotlib auto-scaling.")] = None,
     ylim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for y-axis limits. If None, uses matplotlib auto-scaling.")] = None,
@@ -1101,7 +1245,8 @@ def tool_plot_ode_solution(
             if len(ylim) != 2 or ylim[0] >= ylim[1]:
                 raise ValueError("ylim must be a tuple (min, max) where min < max")
         
-        # Validate grid parameter
+        # Normalize and validate grid parameter
+        grid = _normalize_grid_parameter(grid)
         valid_grid_values = {True, False, "x", "y", "both"}
         if grid not in valid_grid_values:
             raise ValueError(f"grid must be one of {valid_grid_values}")
@@ -1146,8 +1291,8 @@ def tool_plot_ode_solution(
                 linestyles_list.extend(linestyles)
             linestyles_list = linestyles_list[:num_variables]
         
-        # Create figure
-        fig, ax = plt.subplots(figsize=figsize)
+        # Create figure (convert pixels to inches)
+        fig, ax = plt.subplots(figsize=_pixels_to_inches(figsize))
         
         # Determine which variables go on primary vs secondary axis
         primary_vars = {}
@@ -1190,10 +1335,10 @@ def tool_plot_ode_solution(
             if secondary_names:
                 # Use the label from secondary_y dict, or combine if multiple
                 if len(secondary_names) == 1:
-                    ax2.set_ylabel(secondary_y[secondary_names[0]], fontsize=12)
+                    ax2.set_ylabel(secondary_y[secondary_names[0]], fontsize=AXIS_LABEL_FONTSIZE)
                 else:
                     # Multiple variables on secondary axis - use first label
-                    ax2.set_ylabel(secondary_y[secondary_names[0]], fontsize=12)
+                    ax2.set_ylabel(secondary_y[secondary_names[0]], fontsize=AXIS_LABEL_FONTSIZE)
         
         # Set axis limits
         if xlim is not None:
@@ -1202,12 +1347,12 @@ def tool_plot_ode_solution(
             ax.set_ylim(ylim)
         
         # Styling
-        ax.set_xlabel('Time (t)', fontsize=12)
-        ax.set_ylabel('Value', fontsize=12)
+        ax.set_xlabel('Time (t)', fontsize=AXIS_LABEL_FONTSIZE)
+        ax.set_ylabel('Value', fontsize=AXIS_LABEL_FONTSIZE)
         if title:
-            ax.set_title(title, fontsize=14, fontweight='bold')
+            ax.set_title(title, fontsize=TITLE_FONTSIZE, fontweight='bold')
         else:
-            ax.set_title('ODE Solution', fontsize=14, fontweight='bold')
+            ax.set_title('ODE Solution', fontsize=TITLE_FONTSIZE, fontweight='bold')
         
         # Grid control
         if grid is True or grid == "both":
@@ -1236,14 +1381,14 @@ def tool_plot_ode_solution(
             ax.text(0.02, 0.98, method_text, transform=ax.transAxes,
                    verticalalignment='top',
                    bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5),
-                   fontsize=10)
+                   fontsize=ANNOTATION_FONTSIZE)
         
         # Save to memory buffer
         buf = io.BytesIO()
         if output_format == 'svg':
             fig.savefig(buf, format='svg', bbox_inches='tight')
         else:
-            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+            fig.savefig(buf, format='png', dpi=FIGURE_DPI, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
@@ -1263,7 +1408,7 @@ def tool_plot_stackplot(
     title: Annotated[str | None, Field(description="Title for the plot. If None, no title is displayed.")] = None,
     xlabel: Annotated[str, Field(description="Label for the x-axis.")] = "X",
     ylabel: Annotated[str, Field(description="Label for the y-axis.")] = "Value",
-    figsize: Annotated[tuple[int, int], Field(description="Figure size in inches as (width, height).")] = (10, 6),
+    figsize: Annotated[tuple[int, int], Field(description="Figure size in pixels as (width, height).")] = DEFAULT_FIGSIZE_PX,
     colors: Annotated[list[str] | None, Field(description="List of named colors or hex values. If None, uses tab10 palette (excluding yellow). If provided but shorter than series count, pads with unused tab10 colors using HSV distance.")] = None,
     xlim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for x-axis limits. If None, uses matplotlib auto-scaling.")] = None,
     ylim: Annotated[tuple[float, float] | None, Field(description="Tuple of (min, max) for y-axis limits. If None, uses matplotlib auto-scaling.")] = None,
@@ -1308,7 +1453,8 @@ def tool_plot_stackplot(
             if len(ylim) != 2 or ylim[0] >= ylim[1]:
                 raise ValueError("ylim must be a tuple (min, max) where min < max")
         
-        # Validate grid parameter
+        # Normalize and validate grid parameter
+        grid = _normalize_grid_parameter(grid)
         valid_grid_values = {True, False, "x", "y", "both"}
         if grid not in valid_grid_values:
             raise ValueError(f"grid must be one of {valid_grid_values}")
@@ -1339,8 +1485,8 @@ def tool_plot_stackplot(
             # Cycle if needed
             colors = [tab10_colors[i % len(tab10_colors)] for i in range(num_series)]
         
-        # Create figure
-        fig, ax = plt.subplots(figsize=figsize)
+        # Create figure (convert pixels to inches)
+        fig, ax = plt.subplots(figsize=_pixels_to_inches(figsize))
         
         # Prepare data for stacking - need to convert to arrays
         series_data = [series[name] for name in series_names]
@@ -1372,10 +1518,10 @@ def tool_plot_stackplot(
             ax.set_ylim(ylim)
         
         # Styling
-        ax.set_xlabel(xlabel, fontsize=12)
-        ax.set_ylabel(ylabel, fontsize=12)
+        ax.set_xlabel(xlabel, fontsize=AXIS_LABEL_FONTSIZE)
+        ax.set_ylabel(ylabel, fontsize=AXIS_LABEL_FONTSIZE)
         if title:
-            ax.set_title(title, fontsize=14, fontweight='bold')
+            ax.set_title(title, fontsize=TITLE_FONTSIZE, fontweight='bold')
         
         # Legend
         if legend_loc is not None:
@@ -1395,7 +1541,7 @@ def tool_plot_stackplot(
         if output_format == 'svg':
             fig.savefig(buf, format='svg', bbox_inches='tight')
         else:
-            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+            fig.savefig(buf, format='png', dpi=FIGURE_DPI, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
@@ -1410,7 +1556,7 @@ def tool_plot_pie_chart(
     labels: Annotated[list[str], Field(description="Labels for each pie slice. Example: ['Category A', 'Category B', 'Category C']")],
     values: Annotated[list[float], Field(description="Values for each slice. Must have same length as labels. Example: [25.5, 18.9, 32.1]")],
     title: Annotated[str | None, Field(description="Title for the plot. If None, no title is displayed.")] = None,
-    figsize: Annotated[tuple[int, int], Field(description="Figure size in inches as (width, height).")] = (10, 8),
+    figsize: Annotated[tuple[int, int], Field(description="Figure size in pixels as (width, height).")] = DEFAULT_FIGSIZE_LARGE_PX,
     colors: Annotated[list[str] | None, Field(description="List of named colors or hex values. If None, uses tab10 palette (excluding yellow). If provided but shorter than labels count, pads with unused tab10 colors using HSV distance.")] = None,
     autopct: Annotated[str | None, Field(description="Format string for percentage display (e.g., '%1.1f%%', '%0.0f%%'). If None, no percentages are shown.")] = '%1.1f%%',
     startangle: Annotated[float, Field(description="Starting angle in degrees for the first slice (0-360).")] = 90,
@@ -1475,8 +1621,8 @@ def tool_plot_pie_chart(
             # Cycle if needed
             colors = [tab10_colors[i % len(tab10_colors)] for i in range(num_slices)]
         
-        # Create figure
-        fig, ax = plt.subplots(figsize=figsize)
+        # Create figure (convert pixels to inches)
+        fig, ax = plt.subplots(figsize=_pixels_to_inches(figsize))
         
         # Plot pie chart
         wedges, texts, autotexts = ax.pie(
@@ -1494,11 +1640,11 @@ def tool_plot_pie_chart(
             for autotext in autotexts:
                 autotext.set_color('white')
                 autotext.set_fontweight('bold')
-                autotext.set_fontsize(10)
+                autotext.set_fontsize(ANNOTATION_FONTSIZE)
         
         # Styling
         if title:
-            ax.set_title(title, fontsize=14, fontweight='bold')
+            ax.set_title(title, fontsize=TITLE_FONTSIZE, fontweight='bold')
         
         # Legend
         if legend_loc is not None:
@@ -1512,7 +1658,7 @@ def tool_plot_pie_chart(
         if output_format == 'svg':
             fig.savefig(buf, format='svg', bbox_inches='tight')
         else:
-            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+            fig.savefig(buf, format='png', dpi=FIGURE_DPI, bbox_inches='tight')
         plt.close(fig)  # Free memory
         
         # Return ImageContent object
