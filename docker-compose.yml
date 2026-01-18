@@ -16,6 +16,9 @@ services:
       
       # Port to listen on inside container
       MCP_PORT: ${MCP_PORT:-8008}
+
+      # Base directory for plot output files
+      MCP_OUTPUT_DIR: ${MCP_OUTPUT_DIR:-/outputs/}
       
       # HTTP endpoint path
       MCP_PATH: ${MCP_PATH:-/mcp}
@@ -32,6 +35,9 @@ services:
       # Format: "host-port:container-port"
       # Change 8008:8008 to use a different host port (e.g., "9000:8008")
       - "${MCP_HOST_PORT:-8008}:${MCP_PORT:-8008}"
+    volumes:
+      # Mount output directory for plot files
+      - "${MCP_OUTPUT_VOLUME:-./outputs}:/outputs"
     networks:
       - math-mcp-network
     # Health check only works for HTTP transport mode
@@ -49,3 +55,7 @@ networks:
   math-mcp-network:
     name: math-mcp-network
     driver: bridge
+
+volumes:
+  math-mcp-outputs:
+    driver: local

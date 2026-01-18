@@ -378,6 +378,8 @@ docker rm math-mcp-server
 - `MCP_HOST=0.0.0.0` - Bind to all interfaces (accessible from host and Docker network)
 - `MCP_PORT=<port>` - Port to listen on inside container (default: 8008). **Important:** Use `-p <host-port>:<container-port>` to map the port when running Docker, where `<container-port>` should match `MCP_PORT`
 - `MCP_PATH=/mcp` - HTTP endpoint path (default: /mcp)
+- `MCP_OUTPUT_DIR=/outputs/` - Base directory for plot output files (default: /outputs/)
+- `MCP_OUTPUT_VOLUME=./outputs` - Output volume mount path (bind mount or named volume)
 
 **Port mapping examples:**
 ```bash

@@ -41,8 +41,12 @@ def tool_describe_data(
             count = len(arr)
             mean = float(np.mean(arr))
             median = float(np.median(arr))
-            std = float(np.std(arr, ddof=1))  # Sample standard deviation
-            variance = float(np.var(arr, ddof=1))  # Sample variance
+            if count < 2:
+                std = 0.0
+                variance = 0.0
+            else:
+                std = float(np.std(arr, ddof=1))  # Sample standard deviation
+                variance = float(np.var(arr, ddof=1))  # Sample variance
             min_val = float(np.min(arr))
             max_val = float(np.max(arr))
             range_val = max_val - min_val

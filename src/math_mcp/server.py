@@ -1,10 +1,16 @@
 """Math MCP Server - Symbolic math via SymPy."""
 
 import os
+
+import mcp.types as types
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
+from starlette.applications import Starlette
+from starlette.routing import Mount
+from starlette.staticfiles import StaticFiles
 
 from math_mcp import plotting_tools, scipy_tools, stats_tools, sympy_tools, unit_tools
+from math_mcp import plot_output
 
 # Default configuration constants
 DEFAULT_TRANSPORT = "stdio"
@@ -34,6 +40,55 @@ transport_security = TransportSecuritySettings(
     allowed_hosts=allowed_hosts
 )
 
+def _attach_plot_url_handler(app: FastMCP) -> None:
+    """Override tool call handler to include plot URL output when available."""
+
+    async def handler(req: types.CallToolRequest):
+        try:
+            results = await app.call_tool(
+                req.params.name, (req.params.arguments or {})
+            )
+            content = list(results)
+            url = None
+
+            if req.params.name in plot_output.PLOT_TOOL_NAMES:
+                url = plot_output.maybe_save_plot_output(content, app.get_context())
+                if url:
+                    content.append(
+                        types.TextContent(
+                            type="text", text=f"Chart available at: {url}"
+                        )
+                    )
+
+            return types.ServerResult(
+                types.CallToolResult(content=content, isError=False, url=url)
+            )
+        except Exception as exc:
+            return types.ServerResult(
+                types.CallToolResult(
+                    content=[types.TextContent(type="text", text=str(exc))],
+                    isError=True,
+                )
+            )
+
+    app._mcp_server.request_handlers[types.CallToolRequest] = handler
+
+
+def _wrap_http_app(app: object) -> Starlette:
+    output_dir = os.getenv(
+        "MCP_OUTPUT_DIR", plot_output.DEFAULT_OUTPUT_DIR
+    ).strip() or plot_output.DEFAULT_OUTPUT_DIR
+    return Starlette(
+        routes=[
+            Mount(
+                "/outputs",
+                app=StaticFiles(directory=output_dir, check_dir=False),
+            ),
+            Mount("/", app=app),
+        ]
+    )
+
+
 # Create FastMCP instance with transport security settings
 mcp = FastMCP("Math", transport_security=transport_security)
 
@@ -43,6 +98,7 @@ unit_tools.register_unit_tools(mcp)
 scipy_tools.register_scipy_tools(mcp)
 stats_tools.register_stats_tools(mcp)
 plotting_tools.register_plotting_tools(mcp)
+_attach_plot_url_handler(mcp)
 
 
 def main():
@@ -78,7 +134,7 @@ def main():
             
             # Use streamable HTTP app with session management
             # Single endpoint (/mcp) handles both streaming and JSON-RPC messages
-            app = mcp.streamable_http_app
+            app = _wrap_http_app(mcp.streamable_http_app)
             print(f"[math-mcp] Using Streamable HTTP transport (compatible with mcp-remote)", file=sys.stderr)
             
             # Run uvicorn

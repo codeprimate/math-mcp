@@ -55,6 +55,8 @@ class TestDescribeData:
         assert data["count"] == 1
         assert data["mean"] == 42.0
         assert data["median"] == 42.0
+        assert data["std"] == 0.0
+        assert data["variance"] == 0.0
         assert data["min"] == 42.0
         assert data["max"] == 42.0
 
