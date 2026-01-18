@@ -38,9 +38,19 @@ def maybe_save_plot_output(
     content: Sequence[types.TextContent | types.ImageContent | types.EmbeddedResource],
     context: Context | None,
 ) -> str | None:
-    """Save plot output to disk and return a URL if request info is available."""
+    """Save plot output to disk and return a URL if request info is available.
+    
+    Args:
+        content: Sequence of content items (should include ImageContent for plots)
+        context: MCP context with request information for URL generation
+        
+    Returns:
+        URL string if file was saved successfully, None otherwise.
+        Returns None if no image content found or if context doesn't have request info.
+    """
     image = _find_image_content(content)
     if image is None:
+        logger.debug("No image content found in plot output")
         return None
 
     return _save_image_content(image, context)
@@ -59,36 +69,48 @@ def _save_image_content(
     image: types.ImageContent,
     context: Context | None,
 ) -> str | None:
+    """Save image content to disk and return a URL.
+    
+    Returns:
+        URL string if successful, None otherwise. Errors are logged but don't raise.
+    """
+    # Extract request info for URL generation
     request, headers = _extract_request_and_headers(context)
     base_url = _get_base_url(request, headers)
     if not base_url:
         logger.debug("No request base URL available; skipping plot file save.")
         return None
 
+    # Get session ID for organizing files
     session_id = _extract_session_id(context, headers)
     session_id = _sanitize_session_id(session_id)
 
+    # Determine file extension from mime type
     ext = _infer_extension(image)
     if not ext:
-        logger.error("Unsupported image mime type: %s", image.mimeType)
+        logger.warning("Unsupported image mime type: %s", image.mimeType)
         return None
 
+    # Prepare output directory structure
     date_str, timestamp = _utc_date_and_timestamp()
     output_dir = _get_output_dir()
     target_dir = output_dir / "charts" / date_str / session_id
 
+    # Create directory (with parents if needed)
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         logger.error("Failed to create output directory %s: %s", target_dir, exc)
         return None
 
+    # Decode base64 image data
     try:
         image_bytes = base64.b64decode(image.data)
-    except Exception as exc:  # noqa: BLE001 - surface decode error without failing tool
+    except Exception as exc:
         logger.error("Failed to decode image data: %s", exc)
         return None
 
+    # Write file with unique name
     file_path = _build_unique_path(target_dir, timestamp, ext)
     try:
         with open(file_path, "wb") as handle:
@@ -97,9 +119,9 @@ def _save_image_content(
         logger.error("Failed to write plot file %s: %s", file_path, exc)
         return None
 
+    # Generate and return URL
     url = _build_output_url(base_url, date_str, session_id, file_path.name)
-    logger.debug("Saved plot output to %s", file_path)
-    logger.debug("Generated plot URL %s", url)
+    logger.info("Saved plot output to %s (URL: %s)", file_path, url)
     return url
 
 
@@ -232,25 +254,46 @@ def _host_from_url(url: Any) -> str | None:
 def _extract_request_and_headers(
     context: Context | None,
 ) -> tuple[Any | None, Mapping[str, str] | None]:
+    """Extract request object and headers from context.
+    
+    Returns:
+        Tuple of (request_object, headers_dict) or (None, None) if not available.
+    """
     if context is None:
         return None, None
 
+    # Try to get request object first (most direct)
     request = _find_request_object(context)
     if request is not None:
         headers = getattr(request, "headers", None)
         if headers is not None:
             return request, headers
 
+    # Fallback: try to extract headers from context structure
     headers = _headers_from_context(context)
     return request, headers
 
 
 def _find_request_object(context: Context) -> Any | None:
+    """Find request object in context hierarchy.
+    
+    Checks multiple possible locations where request might be stored.
+    """
     candidates = [
         getattr(context, "request", None),
-        getattr(getattr(context, "request_context", None), "request", None),
-        getattr(getattr(getattr(context, "request_context", None), "session", None), "request", None),
     ]
+    
+    # Check request_context.request
+    request_context = getattr(context, "request_context", None)
+    if request_context is not None:
+        candidates.append(getattr(request_context, "request", None))
+        
+        # Check session.request
+        session = getattr(request_context, "session", None)
+        if session is not None:
+            candidates.append(getattr(session, "request", None))
+    
+    # Return first candidate that has headers attribute
     for candidate in candidates:
         if candidate is not None and hasattr(candidate, "headers"):
             return candidate
@@ -258,28 +301,37 @@ def _find_request_object(context: Context) -> Any | None:
 
 
 def _headers_from_context(context: Context) -> Mapping[str, str] | None:
+    """Extract headers from context structure.
+    
+    Tries multiple locations where headers might be stored in the context.
+    """
     request_context = getattr(context, "request_context", None)
     if request_context is None:
         return None
 
+    # Try session.scope.headers (ASGI/Starlette pattern)
     session = getattr(request_context, "session", None)
-    scope = getattr(session, "scope", None)
-    if isinstance(scope, dict) and "headers" in scope:
-        return _headers_from_scope(scope.get("headers"))
+    if session is not None:
+        scope = getattr(session, "scope", None)
+        if isinstance(scope, dict) and "headers" in scope:
+            headers = _headers_from_scope(scope.get("headers"))
+            if headers:
+                return headers
 
+    # Try meta.headers or meta.http.headers
     meta = getattr(request_context, "meta", None)
-    if meta is None:
-        return None
-
-    headers = _get_meta_value(meta, "headers")
-    if isinstance(headers, dict):
-        return headers
-
-    http_meta = _get_meta_value(meta, "http")
-    if isinstance(http_meta, dict):
-        headers = http_meta.get("headers")
+    if meta is not None:
+        # Direct headers in meta
+        headers = _get_meta_value(meta, "headers")
         if isinstance(headers, dict):
             return headers
+
+        # Headers nested in http meta
+        http_meta = _get_meta_value(meta, "http")
+        if isinstance(http_meta, dict):
+            headers = http_meta.get("headers")
+            if isinstance(headers, dict):
+                return headers
 
     return None
 

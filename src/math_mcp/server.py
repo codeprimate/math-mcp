@@ -41,52 +41,92 @@ transport_security = TransportSecuritySettings(
 )
 
 def _attach_plot_url_handler(app: FastMCP) -> None:
-    """Override tool call handler to include plot URL output when available."""
-
+    """Attach handler to save plot outputs and include URLs in responses.
+    
+    This intercepts tool call results for plot tools, saves the image to disk,
+    and adds a URL text content to the response.
+    """
+    # Get the original handler
+    original_handler = app._mcp_server.request_handlers.get(types.CallToolRequest)
+    
     async def handler(req: types.CallToolRequest):
-        try:
-            results = await app.call_tool(
-                req.params.name, (req.params.arguments or {})
-            )
-            content = list(results)
-            url = None
-
-            if req.params.name in plot_output.PLOT_TOOL_NAMES:
+        # Call the original handler (or default FastMCP handler)
+        if original_handler:
+            result = await original_handler(req)
+        else:
+            # Fallback: use FastMCP's default tool call mechanism
+            try:
+                tool_result = await app.call_tool(
+                    req.params.name, (req.params.arguments or {})
+                )
+                # FastMCP returns a list of content items
+                content = list(tool_result) if isinstance(tool_result, (list, tuple)) else [tool_result]
+                result = types.ServerResult(
+                    types.CallToolResult(content=content, isError=False)
+                )
+            except Exception as exc:
+                result = types.ServerResult(
+                    types.CallToolResult(
+                        content=[types.TextContent(type="text", text=str(exc))],
+                        isError=True,
+                    )
+                )
+        
+        # Post-process: save plot files and add URLs for plot tools
+        if not result.root.isError and req.params.name in plot_output.PLOT_TOOL_NAMES:
+            try:
+                # Extract content from result (ServerResult.root contains CallToolResult)
+                content = list(result.root.content) if result.root.content else []
+                
+                # Save plot to file and get URL
                 url = plot_output.maybe_save_plot_output(content, app.get_context())
+                
+                # Add URL as text content if file was saved
                 if url:
                     content.append(
                         types.TextContent(
-                            type="text", text=f"Chart available at: {url}"
+                            type="text",
+                            text=f"Chart available at: {url}"
                         )
                     )
-
-            return types.ServerResult(
-                types.CallToolResult(content=content, isError=False, url=url)
-            )
-        except Exception as exc:
-            return types.ServerResult(
-                types.CallToolResult(
-                    content=[types.TextContent(type="text", text=str(exc))],
-                    isError=True,
-                )
-            )
+                    # Update the result with modified content
+                    result = types.ServerResult(
+                        types.CallToolResult(
+                            content=content,
+                            isError=result.root.isError,
+                        )
+                    )
+            except Exception as exc:
+                # Log error but don't fail the request
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Failed to save plot output: {exc}", exc_info=True)
+        
+        return result
 
     app._mcp_server.request_handlers[types.CallToolRequest] = handler
 
 
-def _wrap_http_app(app: object) -> Starlette:
+def _wrap_http_app(app: object, *, lifespan=None) -> Starlette:
+    """Wrap the MCP streamable HTTP app with /outputs and optional lifespan.
+
+    The MCP StreamableHTTPSessionManager requires its run() context (which sets up
+    the task group) to be active. That is normally done via the Starlette app's
+    lifespan. When we mount the MCP app under a new root Starlette, only the root
+    app's lifespan runs—the mounted app's lifespan is not invoked. So we must pass
+    the MCP app's lifespan into the root Starlette so the task group is initialized.
+    """
     output_dir = os.getenv(
         "MCP_OUTPUT_DIR", plot_output.DEFAULT_OUTPUT_DIR
     ).strip() or plot_output.DEFAULT_OUTPUT_DIR
-    return Starlette(
-        routes=[
-            Mount(
-                "/outputs",
-                app=StaticFiles(directory=output_dir, check_dir=False),
-            ),
-            Mount("/", app=app),
-        ]
-    )
+    routes = [
+        Mount(
+            "/outputs",
+            app=StaticFiles(directory=output_dir, check_dir=False),
+        ),
+        Mount("/", app=app),
+    ]
+    return Starlette(routes=routes, lifespan=lifespan) if lifespan else Starlette(routes=routes)
 
 
 # Create FastMCP instance with transport security settings
@@ -134,7 +174,21 @@ def main():
             
             # Use streamable HTTP app with session management
             # Single endpoint (/mcp) handles both streaming and JSON-RPC messages
-            app = _wrap_http_app(mcp.streamable_http_app)
+            # streamable_http_app returns a Starlette app. Its lifespan runs
+            # StreamableHTTPSessionManager.run(), which initializes the task group
+            # required for handle_request. Our root Starlette must use that lifespan
+            # because mounted apps' lifespans are not run.
+            mcp_app = mcp.streamable_http_app()
+            lifespan = getattr(mcp_app, "lifespan", None)
+            if lifespan is None:
+                if getattr(mcp, "session_manager", None) is None:
+                    raise RuntimeError(
+                        "MCP streamable_http_app() did not provide a lifespan and "
+                        "session_manager is missing. StreamableHTTPSessionManager requires "
+                        "run() to be used as the app lifespan. Upgrade the MCP SDK."
+                    )
+                lifespan = lambda app: mcp.session_manager.run()
+            app = _wrap_http_app(mcp_app, lifespan=lifespan)
             print(f"[math-mcp] Using Streamable HTTP transport (compatible with mcp-remote)", file=sys.stderr)
             
             # Run uvicorn
