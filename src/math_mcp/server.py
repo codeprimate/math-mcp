@@ -1,6 +1,7 @@
 """Math MCP Server - Symbolic math via SymPy."""
 
 import os
+from datetime import datetime, timedelta
 
 import mcp.types as types
 from mcp.server.fastmcp import FastMCP
@@ -41,10 +42,10 @@ transport_security = TransportSecuritySettings(
 )
 
 def _attach_plot_url_handler(app: FastMCP) -> None:
-    """Attach handler to save plot outputs and include URLs in responses.
+    """Attach handler to save plot outputs to disk.
     
-    This intercepts tool call results for plot tools, saves the image to disk,
-    and adds a URL text content to the response.
+    This intercepts tool call results for plot tools and saves the image to disk.
+    URLs can be retrieved via the separate /plot-urls endpoint.
     """
     # Get the original handler
     original_handler = app._mcp_server.request_handlers.get(types.CallToolRequest)
@@ -72,30 +73,35 @@ def _attach_plot_url_handler(app: FastMCP) -> None:
                     )
                 )
         
-        # Post-process: save plot files and add URLs for plot tools
+        # Post-process: save plot files and add URL to response
         if not result.root.isError and req.params.name in plot_output.PLOT_TOOL_NAMES:
             try:
                 # Extract content from result (ServerResult.root contains CallToolResult)
-                content = list(result.root.content) if result.root.content else []
+                original_content = result.root.content
+                content = list(original_content) if original_content else []
                 
                 # Save plot to file and get URL
                 url = plot_output.maybe_save_plot_output(content, app.get_context())
                 
                 # Add URL as text content if file was saved
                 if url:
-                    content.append(
-                        types.TextContent(
-                            type="text",
-                            text=f"Chart available at: {url}"
-                        )
+                    # Add URL text to content list
+                    url_text = types.TextContent(
+                        type="text",
+                        text=f"Chart available at: {url}"
                     )
-                    # Update the result with modified content
-                    result = types.ServerResult(
-                        types.CallToolResult(
-                            content=content,
-                            isError=result.root.isError,
-                        )
-                    )
+                    content.append(url_text)
+                    
+                    # Update the result in place by modifying the content directly
+                    # FastMCP should serialize the updated content
+                    if hasattr(result.root, 'content'):
+                        # Try to update content directly if it's mutable
+                        try:
+                            result.root.content = tuple(content) if isinstance(result.root.content, tuple) else content
+                        except (AttributeError, TypeError):
+                            # If direct assignment doesn't work, create new objects
+                            updated_result = result.root.model_copy(update={"content": tuple(content) if isinstance(original_content, tuple) else content})
+                            result = result.model_copy(update={"root": updated_result})
             except Exception as exc:
                 # Log error but don't fail the request
                 import logging
@@ -107,8 +113,40 @@ def _attach_plot_url_handler(app: FastMCP) -> None:
     app._mcp_server.request_handlers[types.CallToolRequest] = handler
 
 
+# Module-level storage for plot URLs (session_id -> (url, timestamp))
+_plot_urls: dict[str, tuple[str, datetime]] = {}
+_cleanup_interval = timedelta(hours=1)
+
+
+def _create_plot_url_endpoint():
+    """Create a simple endpoint to get the most recent plot URL for a session."""
+    from starlette.responses import JSONResponse
+    from starlette.requests import Request
+    from datetime import datetime
+    
+    async def get_plot_url(request: Request):
+        """Get the most recent plot URL for the session."""
+        session_id = request.headers.get("mcp-session-id") or request.query_params.get("session_id")
+        if not session_id:
+            return JSONResponse({"error": "session_id required"}, status_code=400)
+        
+        # Clean up old entries
+        now = datetime.now()
+        expired = [sid for sid, (_, timestamp) in _plot_urls.items() 
+                  if now - timestamp > _cleanup_interval]
+        for sid in expired:
+            _plot_urls.pop(sid, None)
+        
+        url, _ = _plot_urls.get(session_id, (None, None))
+        if url:
+            return JSONResponse({"url": url})
+        return JSONResponse({"url": None})
+    
+    return get_plot_url
+
+
 def _wrap_http_app(app: object, *, lifespan=None) -> Starlette:
-    """Wrap the MCP streamable HTTP app with /outputs and optional lifespan.
+    """Wrap the MCP streamable HTTP app with /outputs and /plot-urls endpoints.
 
     The MCP StreamableHTTPSessionManager requires its run() context (which sets up
     the task group) to be active. That is normally done via the Starlette app's
@@ -116,14 +154,21 @@ def _wrap_http_app(app: object, *, lifespan=None) -> Starlette:
     app's lifespan runs—the mounted app's lifespan is not invoked. So we must pass
     the MCP app's lifespan into the root Starlette so the task group is initialized.
     """
+    from starlette.routing import Route
+    
     output_dir = os.getenv(
         "MCP_OUTPUT_DIR", plot_output.DEFAULT_OUTPUT_DIR
     ).strip() or plot_output.DEFAULT_OUTPUT_DIR
+    
+    # Create plot URL endpoint
+    get_plot_url = _create_plot_url_endpoint()
+    
     routes = [
         Mount(
             "/outputs",
             app=StaticFiles(directory=output_dir, check_dir=False),
         ),
+        Route("/plot-urls", get_plot_url, methods=["GET"]),
         Mount("/", app=app),
     ]
     return Starlette(routes=routes, lifespan=lifespan) if lifespan else Starlette(routes=routes)
@@ -164,7 +209,7 @@ def main():
             
             # Log startup info to stderr for debugging
             print(f"[math-mcp] Starting HTTP server on {host}:{port}", file=sys.stderr)
-            print(f"[math-mcp] Transport mode: streamable-http", file=sys.stderr)
+            print("[math-mcp] Transport mode: streamable-http", file=sys.stderr)
             
             import uvicorn
             
@@ -189,7 +234,7 @@ def main():
                     )
                 lifespan = lambda app: mcp.session_manager.run()
             app = _wrap_http_app(mcp_app, lifespan=lifespan)
-            print(f"[math-mcp] Using Streamable HTTP transport (compatible with mcp-remote)", file=sys.stderr)
+            print("[math-mcp] Using Streamable HTTP transport (compatible with mcp-remote)", file=sys.stderr)
             
             # Run uvicorn
             uvicorn.run(
@@ -202,7 +247,7 @@ def main():
                 access_log=True
             )
         else:
-            print(f"[math-mcp] Starting stdio server", file=sys.stderr)
+            print("[math-mcp] Starting stdio server", file=sys.stderr)
             mcp.run(transport="stdio")
     except Exception as e:
         # Log errors to stderr so they appear in MCP logs

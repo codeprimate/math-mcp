@@ -37,7 +37,7 @@ services:
       - "${MCP_HOST_PORT:-8008}:${MCP_PORT:-8008}"
     volumes:
       # Mount output directory for plot files (using named volume)
-      - "math-mcp-outputs:/outputs"
+      - "outputs:/outputs"
     networks:
       - math-mcp-network
     # Health check only works for HTTP transport mode
@@ -57,5 +57,5 @@ networks:
     driver: bridge
 
 volumes:
-  math-mcp-outputs:
+  outputs:
     driver: local
