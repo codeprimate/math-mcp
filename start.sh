@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -e
+cd "$(dirname "$0")"
+docker compose build
+docker compose up -d
+echo "math-mcp service started (HTTP on port ${MCP_HOST_PORT:-8008})"
