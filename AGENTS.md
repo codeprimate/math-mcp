@@ -42,6 +42,7 @@ pyproject.toml    # Project config
 ## Key Files & Documentation
 
 - **[README.md](./README.md)** - Main project documentation, tool descriptions, usage examples
+- **[docs/skills/math-mcp/SKILL.md](./docs/skills/math-mcp/SKILL.md)** - Cursor skill for using Math MCP (4-tool interface, discovery, data prep, visualization); use for math/statistics/charting tasks
 - **[pyproject.toml](./pyproject.toml)** - Project configuration, dependencies, coverage settings
 - **[env.example](./env.example)** - Environment variable reference for HTTP mode
 - **[docs/mcp.json](./docs/mcp.json)** - Example Cursor/Claude Desktop config (stdio Docker)
@@ -79,9 +80,10 @@ ruff check --fix src/ tests/
 PYTHONPATH=src pytest tests/ -v
 PYTHONPATH=src pytest tests/ --cov=src --cov-report=json
 
-# Integration test (requires HTTP server running)
-docker-compose build && docker-compose up -d  # Start HTTP server
-./tests/test-plot-http.sh  # Test plot via HTTP endpoint
+# Integration test (requires HTTP server; scripts only work with a freshly built image)
+docker-compose build && docker-compose up -d  # Rebuild and start HTTP server
+./tests/test-plot-http.sh   # Test plot via HTTP endpoint
+./tests/test-batch-http.sh # Test math_batch via HTTP endpoint
 ```
 
 ### Server

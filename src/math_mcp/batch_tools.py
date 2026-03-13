@@ -199,7 +199,7 @@ def register_batch_tools(mcp_app: FastMCP) -> None:
     """Register the batch_tools tool on the given FastMCP instance."""
     handler = create_batch_tool(mcp_app)
     mcp_app.tool(
-        name="batch_tools",
+        name="math_batch",
         description=(
             "Run multiple tools in one request. Pass a list of objects with 'name' (tool name) "
             "and optional 'arguments' (dict). Results are returned in the same order. "

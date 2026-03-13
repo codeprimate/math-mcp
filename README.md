@@ -6,40 +6,20 @@ Powerful symbolic mathematics and statistical analysis for Cursor AI and Claude 
 
 The Math MCP server provides Cursor and Claude Desktop with powerful symbolic and numerical math capabilities. Instead of guessing at math or writing code, you can ask natural language questions and get accurate mathematical results.
 
-### Available Tools
+### Available Tools (4-tool interface)
 
-The server provides 28 tools for mathematical computation:
+The server exposes **4 tools** via `list_tools`. Discovery and execution use these:
 
-| Tool | Purpose | When to Use |
-|------|---------|-------------|
-| `simplify` | Simplify expression | Reduce complex expressions, verify identities |
-| `solve` | Solve equation for variable | Find roots, solve for unknowns |
-| `derivative` | Compute derivative | Calculus, optimization, rate of change |
-| `integral` | Compute integral | Antiderivatives, areas, integration problems |
-| `expand` | Expand expression | Multiply out parentheses, distribute terms |
-| `factor` | Factor expression | Factor polynomials, find roots by factoring |
-| `evaluate` | Evaluate numerically | Get numeric answers, check solutions |
-| `latex` | Convert to LaTeX | Format math for documentation |
-| `to_fraction` | Convert decimal to fraction | Get exact rational representation |
-| `simplify_fraction` | Simplify fraction | Reduce fractions to lowest terms |
-| `convert_unit` | Convert units | Convert between measurement units |
-| `solve_ode` | Solve ODEs numerically | Systems of differential equations, time-dependent problems |
-| `find_root` | Find root numerically | When symbolic solve fails, finding zeros of functions |
-| `describe_data` | Descriptive statistics | Analyze data distributions, calculate percentiles (p95, p99) |
-| `ttest` | T-test | A/B testing, compare means, hypothesis testing |
-| `correlation` | Correlation analysis | Find relationships between variables, metric dependencies |
-| `linear_regression` | Linear regression | Trend analysis, capacity planning, growth forecasting |
-| `moving_average` | Moving average | Smooth time series, filter noise from metrics |
-| `plot_timeseries` | Plot time-series data | Visualize metrics over time, trends, multiple series |
-| `plot_bar_chart` | Create bar charts | Compare categorical data, usage statistics |
-| `plot_histogram` | Create histograms | Data distribution, frequency analysis |
-| `plot_scatter` | Create scatter plots | Correlation analysis, relationship between variables |
-| `plot_heatmap` | Create heatmaps | 2D patterns, time-based or geographic data |
-| `plot_stacked_bar` | Create stacked bar charts | Multi-series comparison across categories |
-| `plot_stackplot` | Create stacked area charts | Composition over time, part-to-whole trends |
-| `plot_pie_chart` | Create pie charts | Proportional data, percentage breakdowns |
-| `plot_ode_solution` | Plot ODE solutions | Visualize differential equation results |
-| `batch_tools` | Run multiple tools in one request | Batch simplify + evaluate + solve; results in same order as calls |
+| Tool | Purpose |
+|------|---------|
+| `math_ls` | List available math tools. Call with no args for categories and a flat list (name + intent). Call `math_ls(category)` for full descriptors (name, description, inputSchema) for every tool in that category. |
+| `math_man` | Return the full descriptor (name, description, inputSchema) for a named math tool. Use after `math_ls()` to get parameters. |
+| `math` | Execute a math tool by name. Call `math(name, arguments)` with a tool from `math_ls()` and its arguments. |
+| `math_batch` | Run multiple tools in one request; results in call order. Pass `calls`: list of `{name, arguments}`. |
+
+**Discovery flow:** Call `math_ls()` to see all 26 internal tools (algebra, calculus, numbers, stats, ode, charts, output). Use `math_man(name)` for one tool’s parameters or `math_ls(category)` for a full category. Then call `math(name, arguments)` to run.
+
+Internal tools (26) include: `simplify`, `solve`, `factor`, `expand`, `derivative`, `integral`, `evaluate`, `to_fraction`, `convert_unit`, `find_root`, `describe_data`, `ttest`, `correlation`, `linear_regression`, `moving_average`, `solve_ode`, `plot_ode_solution`, `plot_timeseries`, `plot_bar`, `plot_histogram`, `plot_scatter`, `plot_heatmap`, `plot_stacked_bar`, `plot_stackplot`, `plot_pie`, `latex`.
 
 ### Example Usage
 
@@ -53,7 +33,7 @@ Once configured, you can ask math questions naturally:
 - **"Integrate x^2"** → Computes integral using `integral` tool
 - **"Convert x^2 + 1/2 to LaTeX"** → Converts to LaTeX using `latex` tool
 - **"Convert 0.5 to a fraction"** → Converts decimal using `to_fraction` tool
-- **"Simplify 6/8"** → Simplifies fraction using `simplify_fraction` tool
+- **"Simplify 6/8"** → Simplifies fraction using `simplify` tool (e.g. `math("simplify", {"expression": "6/8"})` → "3/4")
 - **"Convert 100 meters to kilometers"** → Converts units using `convert_unit` tool
 - **"Solve dx/dt = -x with x(0)=1 from t=0 to t=5"** → Solves ODE using `solve_ode` tool
 - **"Find the root of x^2 - 4 near x=1"** → Finds root using `find_root` tool
@@ -63,7 +43,7 @@ Once configured, you can ask math questions naturally:
 - **"Fit a linear trend to this data"** → Performs regression using `linear_regression` tool
 - **"Smooth these metrics with a moving average"** → Applies smoothing using `moving_average` tool
 - **"Plot this time series data"** → Creates visualization using `plot_timeseries` tool
-- **"Create a bar chart of these categories"** → Creates chart using `plot_bar_chart` tool
+- **"Create a bar chart of these categories"** → Creates chart using `math("plot_bar", {...})`
 - **"Show me a histogram of these values"** → Creates histogram using `plot_histogram` tool
 - **"Plot this data with custom colors: red for series A, blue for series B"** → Uses `colors` parameter in plotting tools
 - **"Create a bar chart with green bars"** → Uses `color` parameter for single-color plots
@@ -79,9 +59,9 @@ Once configured, you can ask math questions naturally:
 - **"Create a larger plot, 1200 by 800 pixels"** → Uses `figsize` parameter to control plot dimensions (in pixels)
 - **"Plot this time series with values displayed on each point"** → Uses `show_values=True` parameter to display data point values
 - **"Format values as currency with 2 decimals"** → Uses `value_format='$.2f'` parameter for currency formatting
-- **"Run simplify, evaluate, and solve in one go"** → Use `batch_tools` with a list of `{name, arguments}`; results are returned in the same order as the requested calls
+- **"Run simplify, evaluate, and solve in one go"** → Use `math_batch` with `calls`: list of `{name, arguments}`; results are returned in the same order
 
-Cursor and Claude Desktop automatically discover all tools and choose the right one based on your question.
+Cursor and Claude Desktop see the 4 tools; use `math_ls()` then `math(name, arguments)` or `math_man(name)` to discover and run the 26 math capabilities.
 
 Perfect for code that involves math, physics simulations, data analysis, statistical testing, performance monitoring, engineering problems, or any task requiring mathematical computation.
 
@@ -152,6 +132,45 @@ Add to your Claude Desktop MCP settings. The configuration file location varies 
 ### That's It!
 
 Once configured, you can ask math questions naturally in Cursor or Claude. See [Example Usage](#example-usage) above for examples.
+
+---
+
+## Using the Cursor skill (in-repo)
+
+This repo includes a **Cursor skill tree** in [`docs/skills/math-mcp/`](./docs/skills/math-mcp/) that guides AI agents on when and how to use the Math MCP server: 4-tool interface, problem classification, data preparation, analysis workflow, visualization, and batching.
+
+### What’s included
+
+| Path | Purpose |
+|------|---------|
+| [docs/skills/math-mcp/SKILL.md](./docs/skills/math-mcp/SKILL.md) | Main skill: when to use math-mcp, tool discovery (`math_ls`, `math_man`, `math`, `math_batch`), tool reference, execution guidelines |
+| [docs/skills/math-mcp/references/data-preparation.md](./docs/skills/math-mcp/references/data-preparation.md) | DuckDB + jq data pipeline, MCP artifacts pattern |
+| [docs/skills/math-mcp/references/analysis-workflow.md](./docs/skills/math-mcp/references/analysis-workflow.md) | Step-by-step analysis, data size, multi-variable and complex problems |
+| [docs/skills/math-mcp/references/visualization.md](./docs/skills/math-mcp/references/visualization.md) | Chart design, graph type selection, color and quality checklist |
+
+### Use in this repo
+
+With the Math MCP server configured (see [Quick Start](#quick-start) or [HTTP Endpoint Setup](#http-endpoint-setup-alternative)), Cursor can use the skill when working in this workspace. Reference the skill so the agent loads it for math-related tasks, for example:
+
+- In **Cursor rules**: add a rule that points at `docs/skills/math-mcp/SKILL.md` for math, statistics, or data visualization tasks.
+- In **AGENTS.md**: list `docs/skills/math-mcp/SKILL.md` under key docs so agents read it when handling math or analysis.
+
+### Use in other projects (global install)
+
+To make the math-mcp skill available in all Cursor projects:
+
+```bash
+# From this repo root
+cp -r docs/skills/math-mcp ~/.cursor/skills/math-mcp
+```
+
+Or symlink to stay in sync with the repo:
+
+```bash
+ln -s "$(pwd)/docs/skills/math-mcp" ~/.cursor/skills/math-mcp
+```
+
+Then ensure the Math MCP server is configured in each project (or globally) where you want to use it. The skill will tell the agent to use `math_ls()` → `math_man(name)` / `math_ls(category)` → `math(name, arguments)` and `math_batch` for batched calls.
 
 ---
 
@@ -419,7 +438,7 @@ MCP_TRANSPORT=streamable-http MCP_HOST=127.0.0.1 MCP_PORT=8008 python -m math_mc
 
 ## Add to Cursor
 
-Add to your Cursor MCP settings (`~/.cursor/mcp.json`) to enable all 20 math tools. See [What This Does](#what-this-does) above for capabilities and available tools.
+Add to your Cursor MCP settings (`~/.cursor/mcp.json`) to enable the math server (4 tools: math_ls, math_man, math, math_batch). See [What This Does](#what-this-does) above for discovery and capabilities.
 
 ### CLI/Docker CLI Configuration (Recommended for Cursor)
 
@@ -571,7 +590,7 @@ The Math MCP server includes powerful plotting tools for data visualization. All
 - Example: `timestamps=['2026-01-01T10:00', '2026-01-01T11:00'], series={'cpu': [45, 67], 'memory': [60, 62]}`
 - Example with values: `timestamps=['Q1', 'Q2', 'Q3'], series={'sales': [1000, 1200, 1150]}, show_values=True, value_format='$.0f'`
 
-**2. Bar Charts (`plot_bar_chart`)**
+**2. Bar Charts (`plot_bar` via math)**
 - Compare values across categories
 - Perfect for: endpoint usage, error counts by type, feature adoption
 - Features: Display values on bars, currency formatting, both vertical and horizontal orientations
@@ -609,7 +628,7 @@ The Math MCP server includes powerful plotting tools for data visualization. All
 - Supports customizable colors and baseline options
 - Example: `x_data=[0, 1, 2, 3], series={'component_a': [10.5, 12.3, 11.8, 13.2], 'component_b': [5.2, 4.8, 6.1, 5.5]}`
 
-**8. Pie Charts (`plot_pie_chart`)**
+**8. Pie Charts (`plot_pie` via math)**
 - Display proportional data and percentage breakdowns
 - Perfect for: market share, status code distribution, category proportions
 - Supports slice explosion, custom colors, and percentage display
@@ -689,10 +708,10 @@ To see all available tools, use the `tools/list` method:
  docker run -i --rm math-mcp
 ```
 
-Expected response includes a list of all available tools with their descriptions:
+Expected response includes the 4 meta-tools (math_ls, math_man, math, math_batch). Use `math_ls()` to discover the 26 internal tools:
 ```json
 {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{...},"serverInfo":{"name":"Math","version":"1.25.0"}}}
-{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"simplify","description":"Simplify a mathematical expression...","inputSchema":{...}},{"name":"solve","description":"Solve an equation for a variable...","inputSchema":{...}},...]}}
+{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"math_ls","description":"List available math tools..."},{"name":"math_man",...},{"name":"math",...},{"name":"math_batch",...}]}}
 ```
 
 #### Example Tool Calls
@@ -742,10 +761,10 @@ Each tool call requires the initialization sequence. Here are examples:
  echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_timeseries","arguments":{"timestamps":["2026-01-01T10:00","2026-01-01T11:00","2026-01-01T12:00"],"series":{"cpu":[45,67,52],"memory":[60,62,58]},"colors":["red","blue"],"title":"System Metrics"}}}') | \
  docker run -i --rm math-mcp
 
-# Create bar chart with custom color and horizontal orientation
+# Create bar chart with custom color and horizontal orientation (via math dispatcher)
 (echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
  echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
- echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_bar_chart","arguments":{"categories":["Endpoint A","Endpoint B","Endpoint C"],"values":[1250,890,1100],"color":"#FF5733","horizontal":true,"title":"Request Counts"}}}') | \
+ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"math","arguments":{"tool":"plot_bar","arguments":{"categories":["Endpoint A","Endpoint B","Endpoint C"],"values":[1250,890,1100],"color":"#FF5733","horizontal":true,"title":"Request Counts"}}}}') | \
  docker run -i --rm math-mcp
 
 # Plot histogram with axis limits and no grid
@@ -784,10 +803,10 @@ echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
 echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_stackplot","arguments":{"x_data":["Q1","Q2","Q3","Q4"],"series":{"product_x":[100,120,110,130],"product_y":[80,90,95,100]},"title":"Revenue by Product"}}}') | \
 docker run -i --rm math-mcp
 
-# Create pie chart with percentage display and custom colors
+# Create pie chart with percentage display and custom colors (via math dispatcher)
 (echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'; \
 echo '{"jsonrpc":"2.0","method":"notifications/initialized"}'; \
-echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"plot_pie_chart","arguments":{"labels":["Category A","Category B","Category C"],"values":[25.5,18.9,32.1],"title":"Distribution","colors":["steelblue","coral","lightgreen"]}}}') | \
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"math","arguments":{"tool":"plot_pie","arguments":{"labels":["Category A","Category B","Category C"],"values":[25.5,18.9,32.1],"title":"Distribution","colors":["steelblue","coral","lightgreen"]}}}}') | \
 docker run -i --rm math-mcp
 ```
 
@@ -927,6 +946,7 @@ Copyright (c) 2026 codeprimate
 
 ## Docs
 
-- [AGENT.md](./AGENT.md) — Usage guide for AI agents
+- [AGENTS.md](./AGENTS.md) — Development guide for AI agents (build, test, lint)
+- [docs/skills/math-mcp/](./docs/skills/math-mcp/) — Cursor skill tree for using Math MCP (see [Using the Cursor skill](#using-the-cursor-skill-in-repo))
 - [docs/SPEC.md](./docs/SPEC.md) — Specification
 - [docs/TESTING.md](./docs/TESTING.md) — Testing guide

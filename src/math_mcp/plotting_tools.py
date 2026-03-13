@@ -1670,11 +1670,11 @@ def tool_plot_pie_chart(
 def register_plotting_tools(mcp):
     """Register matplotlib-based plotting tools with the MCP server."""
     mcp.tool(name="plot_timeseries")(tool_plot_timeseries)
-    mcp.tool(name="plot_bar_chart")(tool_plot_bar_chart)
+    mcp.tool(name="plot_bar")(tool_plot_bar_chart)
     mcp.tool(name="plot_histogram")(tool_plot_histogram)
     mcp.tool(name="plot_scatter")(tool_plot_scatter)
     mcp.tool(name="plot_heatmap")(tool_plot_heatmap)
     mcp.tool(name="plot_stacked_bar")(tool_plot_stacked_bar)
     mcp.tool(name="plot_stackplot")(tool_plot_stackplot)
     mcp.tool(name="plot_ode_solution")(tool_plot_ode_solution)
-    mcp.tool(name="plot_pie_chart")(tool_plot_pie_chart)
+    mcp.tool(name="plot_pie")(tool_plot_pie_chart)

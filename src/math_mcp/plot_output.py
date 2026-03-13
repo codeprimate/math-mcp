@@ -23,14 +23,14 @@ SESSION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 
 PLOT_TOOL_NAMES = {
     "plot_timeseries",
-    "plot_bar_chart",
+    "plot_bar",
     "plot_histogram",
     "plot_scatter",
     "plot_heatmap",
     "plot_stacked_bar",
     "plot_stackplot",
     "plot_ode_solution",
-    "plot_pie_chart",
+    "plot_pie",
 }
 
 

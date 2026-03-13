@@ -17,7 +17,6 @@ from math_mcp.sympy_tools import (
     tool_integral,
     tool_latex,
     tool_simplify,
-    tool_simplify_fraction,
     tool_solve,
     tool_to_fraction,
 )
@@ -122,20 +121,6 @@ class TestToFraction:
         # Should convert to fraction representation
         result = tool_to_fraction("0.333")
         assert "/" in result  # Should be a fraction
-
-
-class TestSimplifyFraction:
-    def test_numeric_fraction(self):
-        assert tool_simplify_fraction("6/8") == "3/4"
-
-    def test_another_numeric(self):
-        assert tool_simplify_fraction("12/18") == "2/3"
-
-    def test_algebraic_fraction(self):
-        assert tool_simplify_fraction("(x**2 - 4)/(x - 2)") == "x + 2"
-
-    def test_algebraic_with_factor(self):
-        assert tool_simplify_fraction("(2*x + 4)/(x + 2)") == "2"
 
 
 class TestConvertUnit:

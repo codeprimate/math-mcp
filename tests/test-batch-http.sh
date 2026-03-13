@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Test batch_tools via MCP HTTP (localhost:8008).
-# Prereq: math-mcp server on http://localhost:8008 (e.g. docker-compose up -d).
+# Test math_batch via MCP HTTP (localhost:8008).
+# Prereq: Rebuild the image and start the server so the running code has the latest tools:
+#   docker-compose build && docker-compose up -d
+# Then ensure math-mcp is on http://localhost:8008.
 
 set -e
 BASE_URL="${BASE_URL:-http://localhost:8008}"
@@ -22,8 +24,8 @@ fi
 echo "Session: $SESSION_ID"
 
 echo ""
-echo "=== 2. Call batch_tools (simplify + evaluate + solve) ==="
-BODY='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"batch_tools","arguments":{"calls":[{"name":"simplify","arguments":{"expression":"x + x"}},{"name":"evaluate","arguments":{"expression":"1+1"}},{"name":"solve","arguments":{"equation":"x^2 - 4","variable":"x"}}]}}}'
+echo "=== 2. Call math_batch (simplify + evaluate + solve) ==="
+BODY='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"math_batch","arguments":{"calls":[{"name":"simplify","arguments":{"expression":"x + x"}},{"name":"evaluate","arguments":{"expression":"1+1"}},{"name":"solve","arguments":{"equation":"x^2 - 4","variable":"x"}}]}}}'
 RAW=$(curl -s -X POST "$MCP_URL" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \

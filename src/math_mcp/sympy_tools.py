@@ -302,35 +302,6 @@ def tool_to_fraction(
             return f"Error: Could not convert '{value}' to fraction: {e}"
 
 
-def tool_simplify_fraction(
-        fraction: Annotated[str, Field(description="Fraction expression to simplify to lowest terms. Can be a simple fraction like '6/8' or '12/18', or an algebraic fraction like '(x^2-4)/(x-2)'. Examples: '6/8', '12/18', '(x^2-4)/(x-2)'.")]
-    ) -> str:
-        """Simplify a fraction to its lowest terms.
-
-        Reduces fractions by canceling common factors between numerator and denominator. Works with both numeric and algebraic fractions. Essential for presenting results in simplest form and simplifying rational expressions.
-
-        Use this when:
-        - Reducing numeric fractions to lowest terms (6/8 → 3/4)
-        - Simplifying algebraic fractions
-        - Canceling common factors in rational expressions
-        - Presenting results in simplest form
-        - Preparing fractions for further operations
-
-        Examples:
-        - fraction='6/8' → '3/4' (numeric simplification)
-        - fraction='12/18' → '2/3' (cancel common factor of 6)
-        - fraction='(x^2-4)/(x-2)' → 'x + 2' (algebraic simplification, if x ≠ 2)
-        - fraction='(2*x + 4)/(x + 2)' → '2' (factor and cancel)
-        """
-        try:
-            expr = parse_expr(fraction)
-            # Simplify the expression (this handles both numeric and algebraic fractions)
-            result = simplify(expr)
-            return str(result)
-        except SympifyError as e:
-            return f"Error: Could not parse fraction: {e}"
-
-
 def register_sympy_tools(mcp):
     """Register all SymPy-based tools with the MCP server."""
     mcp.tool(name="simplify")(tool_simplify)
@@ -342,4 +313,3 @@ def register_sympy_tools(mcp):
     mcp.tool(name="evaluate")(tool_evaluate)
     mcp.tool(name="latex")(tool_latex)
     mcp.tool(name="to_fraction")(tool_to_fraction)
-    mcp.tool(name="simplify_fraction")(tool_simplify_fraction)

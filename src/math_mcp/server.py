@@ -10,7 +10,7 @@ from starlette.applications import Starlette
 from starlette.routing import Mount
 from starlette.staticfiles import StaticFiles
 
-from math_mcp import batch_tools, plot_output, plotting_tools, scipy_tools, stats_tools, sympy_tools, unit_tools
+from math_mcp import batch_tools, meta_tools, plot_output, plotting_tools, scipy_tools, stats_tools, sympy_tools, unit_tools
 
 # Default configuration constants
 DEFAULT_TRANSPORT = "stdio"
@@ -184,6 +184,8 @@ stats_tools.register_stats_tools(mcp)
 plotting_tools.register_plotting_tools(mcp)
 _attach_plot_url_handler(mcp)
 batch_tools.register_batch_tools(mcp)
+meta_tools.register_meta_tools(mcp, mcp)
+meta_tools._override_list_tools_handler(mcp)
 
 
 def main():
