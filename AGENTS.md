@@ -4,11 +4,13 @@ Python MCP server providing 27+ tools for symbolic mathematics, statistical anal
 
 ## Quick Start
 
+This project uses **uv** for environment and dependency management.
+
 ```bash
 # Setup (first time)
-python3 -m venv .venv
+uv venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+uv sync
 
 # Daily workflow
 source .venv/bin/activate
@@ -16,9 +18,16 @@ ruff check --fix src/ tests/
 PYTHONPATH=src pytest tests/ -v
 ```
 
+Or use `uv run` so you don't need to activate the venv:
+
+```bash
+uv run ruff check --fix src/ tests/
+PYTHONPATH=src uv run pytest tests/ -v
+```
+
 ## Critical Requirements
 
-1. **Always activate venv:** `source .venv/bin/activate` before any Python commands
+1. **Use uv:** Create venv with `uv venv`, install deps with `uv sync`. Optionally use `uv run` for commands instead of activating the venv.
 2. **Always run linter:** `ruff check --fix src/ tests/` after code changes
 3. **Tests require PYTHONPATH:** `PYTHONPATH=src pytest tests/ -v`
 
@@ -53,8 +62,9 @@ pyproject.toml    # Project config
 
 ### Setup
 ```bash
+uv venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+uv sync
 ```
 
 ### Linting
@@ -109,7 +119,7 @@ Environment variables (see `env.example`):
 
 ## Important Notes
 
-- Use venv (.venv)
+- Use **uv** for venv and dependencies (`.venv`); run `uv sync` after pulling changes
 - Source: `src/math_mcp/` (not `math_mcp/`)
 - Tests: `tests/` (not `test/`)
 - Entry point: `python -m math_mcp.server`

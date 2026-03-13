@@ -4,8 +4,6 @@ from typing import Annotated
 
 from pydantic import Field
 from sympy import (
-    E,
-    I,
     Rational,
     diff,
     expand,
@@ -13,7 +11,6 @@ from sympy import (
     integrate,
     latex,
     nsimplify,
-    pi,
     simplify,
     solve,
     symbols,

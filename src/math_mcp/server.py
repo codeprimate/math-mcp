@@ -10,8 +10,7 @@ from starlette.applications import Starlette
 from starlette.routing import Mount
 from starlette.staticfiles import StaticFiles
 
-from math_mcp import plotting_tools, scipy_tools, stats_tools, sympy_tools, unit_tools
-from math_mcp import plot_output
+from math_mcp import batch_tools, plot_output, plotting_tools, scipy_tools, stats_tools, sympy_tools, unit_tools
 
 # Default configuration constants
 DEFAULT_TRANSPORT = "stdio"
@@ -184,6 +183,7 @@ scipy_tools.register_scipy_tools(mcp)
 stats_tools.register_stats_tools(mcp)
 plotting_tools.register_plotting_tools(mcp)
 _attach_plot_url_handler(mcp)
+batch_tools.register_batch_tools(mcp)
 
 
 def main():
@@ -232,7 +232,11 @@ def main():
                         "session_manager is missing. StreamableHTTPSessionManager requires "
                         "run() to be used as the app lifespan. Upgrade the MCP SDK."
                     )
-                lifespan = lambda app: mcp.session_manager.run()
+
+                def _http_lifespan(app):
+                    return mcp.session_manager.run()
+
+                lifespan = _http_lifespan
             app = _wrap_http_app(mcp_app, lifespan=lifespan)
             print("[math-mcp] Using Streamable HTTP transport (compatible with mcp-remote)", file=sys.stderr)
             

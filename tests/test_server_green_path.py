@@ -3,7 +3,7 @@
 import os
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -11,7 +11,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from math_mcp import server
 from math_mcp.server import (
-    _attach_plot_url_handler,
     _wrap_http_app,
     main,
     mcp,

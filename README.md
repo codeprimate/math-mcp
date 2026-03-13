@@ -8,7 +8,7 @@ The Math MCP server provides Cursor and Claude Desktop with powerful symbolic an
 
 ### Available Tools
 
-The server provides 27 tools for mathematical computation:
+The server provides 28 tools for mathematical computation:
 
 | Tool | Purpose | When to Use |
 |------|---------|-------------|
@@ -39,6 +39,7 @@ The server provides 27 tools for mathematical computation:
 | `plot_stackplot` | Create stacked area charts | Composition over time, part-to-whole trends |
 | `plot_pie_chart` | Create pie charts | Proportional data, percentage breakdowns |
 | `plot_ode_solution` | Plot ODE solutions | Visualize differential equation results |
+| `batch_tools` | Run multiple tools in one request | Batch simplify + evaluate + solve; results in same order as calls |
 
 ### Example Usage
 
@@ -78,6 +79,7 @@ Once configured, you can ask math questions naturally:
 - **"Create a larger plot, 1200 by 800 pixels"** → Uses `figsize` parameter to control plot dimensions (in pixels)
 - **"Plot this time series with values displayed on each point"** → Uses `show_values=True` parameter to display data point values
 - **"Format values as currency with 2 decimals"** → Uses `value_format='$.2f'` parameter for currency formatting
+- **"Run simplify, evaluate, and solve in one go"** → Use `batch_tools` with a list of `{name, arguments}`; results are returned in the same order as the requested calls
 
 Cursor and Claude Desktop automatically discover all tools and choose the right one based on your question.
 

@@ -222,7 +222,9 @@ def tool_find_root(
             
             # Convert to callable function
             f_lambda = parse_expr(function)
-            f_func = lambda x_val: float(f_lambda.subs(x_sym, x_val).evalf())
+
+            def f_func(x_val):
+                return float(f_lambda.subs(x_sym, x_val).evalf())
             
             # Auto-select method if not specified
             if method == "auto":
@@ -254,7 +256,7 @@ def tool_find_root(
                                     a, b = test_a, test_b
                                     found_bracket = True
                                     break
-                            except:
+                            except Exception:
                                 continue
                         if found_bracket:
                             break
@@ -298,7 +300,9 @@ def tool_find_root(
                 # Newton-Raphson method requires derivative
                 try:
                     df_expr = diff(expr, x_sym)
-                    df_func = lambda x_val: float(df_expr.subs(x_sym, x_val).evalf())
+
+                    def df_func(x_val):
+                        return float(df_expr.subs(x_sym, x_val).evalf())
                 except Exception as e:
                     return f"Error: Could not compute derivative for Newton method: {e}"
                 

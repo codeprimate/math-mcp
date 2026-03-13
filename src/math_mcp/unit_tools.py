@@ -2,12 +2,10 @@
 
 from typing import Annotated
 
-import numpy as np
 from pydantic import Field
 from sympy.physics import units
 from sympy.physics.units import convert_to
 
-from math_mcp.utils import parse_expr
 
 
 # Tool function implementation (exported for testing)

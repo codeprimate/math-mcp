@@ -1,7 +1,6 @@
 """Shared utilities for math MCP tools."""
 
 from sympy import E, I, pi, sympify
-from sympy.core.sympify import SympifyError
 
 
 def parse_expr(expression: str):

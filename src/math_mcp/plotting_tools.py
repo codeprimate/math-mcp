@@ -390,7 +390,6 @@ def tool_plot_timeseries(
         
         # Get series names in order
         series_names = list(series.keys())
-        primary_names = list(primary_series.keys())
         secondary_names = list(secondary_series.keys())
         
         # Plot primary axis series
@@ -821,7 +820,7 @@ def tool_plot_scatter(
         fig, ax = plt.subplots(figsize=_pixels_to_inches(figsize))
         
         # Plot scatter
-        scatter = ax.scatter(x_data, y_data, s=100, alpha=0.6, c=color, edgecolors='black', linewidth=1)
+        ax.scatter(x_data, y_data, s=100, alpha=0.6, c=color, edgecolors='black', linewidth=1)
         
         # Add labels if provided
         if labels:
@@ -967,8 +966,8 @@ def tool_plot_heatmap(
         if n_rows <= 20 and n_cols <= 20:
             for i in range(n_rows):
                 for j in range(n_cols):
-                    text = ax.text(j, i, f'{data_array[i, j]:.1f}',
-                                 ha="center", va="center", color="w", fontsize=VALUE_LABEL_FONTSIZE)
+                    ax.text(j, i, f'{data_array[i, j]:.1f}',
+                            ha="center", va="center", color="w", fontsize=VALUE_LABEL_FONTSIZE)
         
         # Save to memory buffer
         buf = io.BytesIO()
@@ -1314,7 +1313,6 @@ def tool_plot_ode_solution(
                 primary_vars[var_name] = values
         
         # Get variable names in order
-        primary_names = list(primary_vars.keys())
         secondary_names = list(secondary_vars.keys())
         
         # Plot primary axis variables

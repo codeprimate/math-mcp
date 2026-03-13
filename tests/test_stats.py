@@ -4,7 +4,6 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
 
 # Add src to path for imports (needed for src-layout packages)
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -316,11 +315,9 @@ class TestMovingAverage:
         result = tool_moving_average(data=noisy_data, window=3)
         data = json.loads(result)
         
-        # Calculate variance of original vs smoothed
+        # Smoothed should generally have lower variance (sanity check)
         import numpy as np
         orig_var = np.var(noisy_data)
         smooth_var = np.var([x for x in data["smoothed"] if not np.isnan(x)])
-        
-        # Smoothed should generally have lower variance (not always, but typically)
-        # This is a sanity check, not a strict requirement
+        assert smooth_var <= orig_var
         assert len(data["smoothed"]) == len(noisy_data)

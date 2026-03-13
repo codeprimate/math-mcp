@@ -68,7 +68,11 @@ class TestStreamableHttpApp:
         if lifespan is None:
             if getattr(mcp, "session_manager", None) is None:
                 pytest.skip("MCP streamable_http_app() did not provide lifespan and session_manager is missing")
-            lifespan = lambda app: mcp.session_manager.run()
+
+            def _test_lifespan(app):
+                return mcp.session_manager.run()
+
+            lifespan = _test_lifespan
         wrapped = _wrap_http_app(mcp_app, lifespan=lifespan)
 
         # TestClient runs the app's lifespan when used as a context manager

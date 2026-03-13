@@ -1,6 +1,6 @@
 [project]
 name = "math-mcp"
-version = "0.1.0"
+version = "0.1.1"
 description = "MCP server for symbolic mathematics using SymPy"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -9,6 +9,8 @@ dependencies = [
     "mcp[cli]>=1.0.0",
     "scipy>=1.10",
     "numpy>=1.24",
+    "matplotlib>=3.7.0",
+    "pydantic>=2.0",
 ]
 
 [project.optional-dependencies]
