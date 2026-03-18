@@ -16,7 +16,7 @@ The server exposes **4 tools** via `list_tools`. All math operations go through 
 | **math** | Run one internal tool: `math(name, arguments)`. Use names from `math_ls()`. |
 | **math_batch** | Run multiple internal tools in one request. Pass `calls`: list of `{name, arguments}` (max 64); results in same order. |
 
-**Discovery flow:** Call `math_ls()` to see all 26 internal tools and categories. Use `math_man(name)` for one tool’s parameters, or `math_ls(category)` for a full category. Then call `math(name, arguments)` to run (or `math_batch` for multiple independent calls).
+**Discovery flow:** Call `math_ls()` to see all 26 internal tools and categories. Use `math_man(name)` for one tool’s parameters, or `math_ls(category)` for a full category. **Category ids** (use with `math_ls(category)`): `algebra`, `calculus`, `numbers`, `stats`, `ode`, `charts`, `output`. Then call `math(name, arguments)` to run (or `math_batch` for multiple independent calls).
 
 ## Problem Classification Guide
 
@@ -140,44 +140,42 @@ Chart tools support optional: `title`, `xlabel`, `ylabel`, `figsize` (width, hei
 
 ### Internal tools (26) — use with math(name, arguments) or math_batch
 
-*For exact parameters, call `math_man(name)` or `math_ls(category)`.*
+*For exact parameters, call `math_man(name)` or `math_ls(category)`.* Category ids: **algebra**, **calculus**, **numbers**, **stats**, **ode**, **charts**, **output**.
 
 ---
 
-### Symbolic / algebraic
+### algebra
 
 | Tool | Parameters | Use cases |
 |------|------------|-----------|
 | **simplify** | `expression` (string) | Reduce expressions; verify identities; clean up trig/log; combine like terms. For fractions use expression e.g. `"6/8"`. |
 | **solve** | `equation` (string, expr = 0), `variable` (string) | Find roots/zeros; solve for unknown; "solve for x" questions. Linear, quadratic, polynomial, many transcendental. |
-| **expand** | `expression` (string) | Multiply out parentheses; expand binomials; distribute; factored → standard polynomial form. |
 | **factor** | `expression` (string) | Factor polynomials; simplify rationals; find roots by factoring; expanded → factored form. |
-| **evaluate** | `expression` (string), `values`? (object, var → number) | Numeric evaluation; substitute variables; decimal approximations; check equality (evaluate difference). |
-| **latex** | `expression` (string) | Convert expression to LaTeX for docs, markdown, or typeset display. |
+| **expand** | `expression` (string) | Multiply out parentheses; expand binomials; distribute; factored → standard polynomial form. |
 
 ---
 
-### Calculus and roots
+### calculus
 
 | Tool | Parameters | Use cases |
 |------|------------|-----------|
 | **derivative** | `expression`, `variable` | Slope/rate of change; critical points (derivative = 0); increasing/decreasing; partial derivatives. |
 | **integral** | `expression`, `variable` | Antiderivatives; areas (combine with evaluate for definite); reverse of derivative. |
-| **find_root** | `function` (string, f(x)=0), `initial_guess`?, `bracket`? [a,b], `method`? ('newton'\|'bisection'\|'brentq'\|'secant') | Numerical root when symbolic solve fails or is slow; intersection points; critical points. |
-| **solve_ode** | `equations` (list of "dx/dt = expr"), `initial_conditions` (object), `time_span` [t_start, t_end], `method`? ('rk45'\|'rk4'\|'euler') | Systems of ODEs; IVPs; physics/engineering simulations; dynamic models. |
 
 ---
 
-### Numbers and units
+### numbers
 
 | Tool | Parameters | Use cases |
 |------|------------|-----------|
+| **evaluate** | `expression` (string), `values`? (object, var → number) | Numeric evaluation; substitute variables; decimal approximations; check equality (evaluate difference). |
 | **to_fraction** | `value` (string, decimal or numeric expr) | Decimal → exact rational; avoid float errors; repeating decimals. |
 | **convert_unit** | `value` (number), `from_unit`, `to_unit` (e.g. 'meter', 'kilometer', 'celsius', 'fahrenheit') | Unit conversion within category: length, mass, time, temperature, volume, speed. |
+| **find_root** | `function` (string, f(x)=0), `initial_guess`?, `bracket`? [a,b], `method`? ('newton'\|'bisection'\|'brentq'\|'secant') | Numerical root when symbolic solve fails or is slow; intersection points; critical points. |
 
 ---
 
-### Statistics and series
+### stats
 
 | Tool | Parameters | Use cases |
 |------|------------|-----------|
@@ -189,7 +187,16 @@ Chart tools support optional: `title`, `xlabel`, `ylabel`, `figsize` (width, hei
 
 ---
 
-### Visualization
+### ode
+
+| Tool | Parameters | Use cases |
+|------|------------|-----------|
+| **solve_ode** | `equations` (list of "dx/dt = expr"), `initial_conditions` (object), `time_span` [t_start, t_end], `method`? ('rk45'\|'rk4'\|'euler') | Systems of ODEs; IVPs; physics/engineering simulations; dynamic models. |
+| **plot_ode_solution** | `ode_result` (JSON string from solve_ode: `t` + variable arrays) | Visualize ODE solution; dynamical system behavior. |
+
+---
+
+### charts
 
 | Tool | Parameters | Use cases |
 |------|------------|-----------|
@@ -197,11 +204,18 @@ Chart tools support optional: `title`, `xlabel`, `ylabel`, `figsize` (width, hei
 | **plot_bar** | `categories`, `values` (arrays); optional `horizontal`, `show_values`, `value_format` | Categorical comparison; rankings; discrete counts; prefer horizontal for long labels. |
 | **plot_histogram** | `data` (array), `bins`? (default 30) | Distribution shape; frequency; outliers; spread. |
 | **plot_scatter** | `x_data`, `y_data` (arrays); optional `labels` (point labels) | Correlation; paired measurements; clusters; relationships. |
+| **plot_heatmap** | `data` (2D array of rows), `x_labels`?, `y_labels`?; optional `colormap` | Matrices; correlation/confusion matrices; intensity over two dimensions. |
 | **plot_stacked_bar** | `categories`, `series` (object: name → array); optional `horizontal`, `show_values`, `show_segment_values`, `show_total`, `value_format` | Part-to-whole by category; component breakdown; use sparingly. |
 | **plot_stackplot** | `x_data`, `series` (object); optional `baseline` ('zero'\|'sym'\|'wiggle'), `alpha` | Composition over continuous x (e.g. time); evolution of parts. |
-| **plot_heatmap** | `data` (2D array of rows), `x_labels`?, `y_labels`?; optional `colormap` | Matrices; correlation/confusion matrices; intensity over two dimensions. |
-| **plot_ode_solution** | `ode_result` (JSON string from solve_ode: `t` + variable arrays) | Visualize ODE solution; dynamical system behavior. |
 | **plot_pie** | `labels`, `values`; optional `autopct`, `explode`, `startangle`, `shadow` | Proportional composition; **avoid when possible** — prefer plot_bar for accurate perception. |
+
+---
+
+### output
+
+| Tool | Parameters | Use cases |
+|------|------------|-----------|
+| **latex** | `expression` (string) | Convert expression to LaTeX for docs, markdown, or typeset display. |
 
 ---
 

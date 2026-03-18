@@ -186,9 +186,21 @@ def register_meta_tools(mcp_app: FastMCP, app: FastMCP) -> None:
             try:
                 url = plot_output.maybe_save_plot_output(normalized, app.get_context())
                 if url:
-                    normalized.append(
-                        TextContent(type="text", text=f"Chart available at: {url}")
+                    url_text = TextContent(
+                        type="text", text=f"Chart available at: {url}"
                     )
+                    # Some MCP clients (e.g. Cursor) fail on image/svg+xml with
+                    # "Mime type application/xml does not support decoding",
+                    # which aborts the whole result. Return only the URL for SVG
+                    # so the agent always gets the link; they can open it to view.
+                    has_svg = any(
+                        getattr(c, "mimeType", "") == "image/svg+xml"
+                        for c in normalized
+                        if isinstance(c, ImageContent)
+                    )
+                    if has_svg:
+                        return url_text.text
+                    normalized.insert(0, url_text)
             except Exception as exc:
                 import logging
                 logging.getLogger(__name__).warning(
