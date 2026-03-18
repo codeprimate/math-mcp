@@ -59,6 +59,7 @@ Once configured, you can ask math questions naturally:
 - **"Create a larger plot, 1200 by 800 pixels"** → Uses `figsize` parameter to control plot dimensions (in pixels)
 - **"Plot this time series with values displayed on each point"** → Uses `show_values=True` parameter to display data point values
 - **"Format values as currency with 2 decimals"** → Uses `value_format='$.2f'` parameter for currency formatting
+- **"Create a chart as SVG"** or **"Output the plot as SVG"** → Use `output_format='svg'` on any plotting tool (default is `'png'`)
 - **"Run simplify, evaluate, and solve in one go"** → Use `math_batch` with `calls`: list of `{name, arguments}`; results are returned in the same order
 
 Cursor and Claude Desktop see the 4 tools; use `math_ls()` then `math(name, arguments)` or `math_man(name)` to discover and run the 26 math capabilities.

@@ -11,6 +11,7 @@ from mcp.types import ImageContent
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from math_mcp import plot_output
+from math_mcp.plotting_tools import tool_plot_bar_chart
 
 
 class DummyURL:
@@ -77,6 +78,15 @@ def test_build_unique_path_adds_counter_when_needed(tmp_path):
     assert path.name == "chart-20260101010101-1.png"
 
 
+def test_infer_extension_svg():
+    image = ImageContent(
+        type="image",
+        data="",
+        mimeType="image/svg+xml",
+    )
+    assert plot_output._infer_extension(image) == "svg"
+
+
 def test_maybe_save_plot_output_writes_file_and_returns_url(tmp_path, monkeypatch):
     monkeypatch.setenv("MCP_OUTPUT_DIR", str(tmp_path))
     monkeypatch.setattr(
@@ -112,6 +122,58 @@ def test_maybe_save_plot_output_writes_file_and_returns_url(tmp_path, monkeypatc
         / "chart-20260115143025.png"
     )
     assert saved_path.read_bytes() == payload
+
+
+def test_maybe_save_plot_output_svg_saves_with_svg_extension(tmp_path, monkeypatch):
+    """When plot output is SVG, saved file and URL use .svg extension."""
+    monkeypatch.setenv("MCP_OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        plot_output,
+        "_utc_date_and_timestamp",
+        lambda: ("2026-01-15", "20260115143025"),
+    )
+
+    payload = b"<svg xmlns='http://www.w3.org/2000/svg'></svg>"
+    image = ImageContent(
+        type="image",
+        data=base64.b64encode(payload).decode("utf-8"),
+        mimeType="image/svg+xml",
+    )
+    headers = {
+        "x-forwarded-proto": "https",
+        "x-forwarded-host": "api.example.com",
+        "mcp-session-id": "abc123",
+    }
+    context = DummyContext(DummyRequest(headers=headers))
+
+    url = plot_output.maybe_save_plot_output([image], context)
+    assert url is not None
+    assert url.endswith(".svg")
+    assert (
+        url
+        == "https://api.example.com/outputs/charts/2026-01-15/abc123/chart-20260115143025.svg"
+    )
+
+    saved_path = (
+        tmp_path
+        / "charts"
+        / "2026-01-15"
+        / "abc123"
+        / "chart-20260115143025.svg"
+    )
+    assert saved_path.read_bytes() == payload
+
+
+def test_plot_bar_chart_returns_svg_when_output_format_svg():
+    """Clients can request SVG output via output_format='svg'."""
+    result = tool_plot_bar_chart(
+        categories=["A", "B", "C"],
+        values=[10.0, 20.0, 15.0],
+        output_format="svg",
+    )
+    assert result.mimeType == "image/svg+xml"
+    decoded = base64.b64decode(result.data).decode("utf-8")
+    assert "<svg" in decoded or "<?xml" in decoded
 
 
 def test_maybe_save_plot_output_returns_none_without_base_url():

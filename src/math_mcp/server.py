@@ -82,14 +82,14 @@ def _attach_plot_url_handler(app: FastMCP) -> None:
                 # Save plot to file and get URL
                 url = plot_output.maybe_save_plot_output(content, app.get_context())
                 
-                # Add URL as text content if file was saved
+                # Add URL as first content so the link is always visible (e.g. when client cannot decode SVG)
                 if url:
-                    # Add URL text to content list
+                    format_label = "SVG" if url.endswith(".svg") else "PNG"
                     url_text = types.TextContent(
                         type="text",
-                        text=f"Chart available at: {url}"
+                        text=f"Chart ({format_label}) available at: {url}",
                     )
-                    content.append(url_text)
+                    content.insert(0, url_text)
                     
                     # Update the result in place by modifying the content directly
                     # FastMCP should serialize the updated content
