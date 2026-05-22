@@ -74,7 +74,15 @@ For complete step-by-step analysis protocol, data size management, multi-variabl
 
 **CRITICAL: Design for perception, not preference. Every visualization choice should optimize for accurate, efficient transfer of quantitative understanding.**
 
-**Chart output:** Chart tools (e.g. `math(plot_timeseries, {...})`, `math(plot_bar, {...})`) return a URL. Download the chart with `curl` and save it to `$ANALYSIS_DIR/charts/<descriptive_name>.png` so it is stored with the analysis session.
+**Chart output (HTTP transport):** Chart tools (e.g. `math(plot_timeseries, {...})`, `math(plot_bar, {...})`) return JSON with `download_url` and `mimeType` — not inline image data. **You must download the chart with curl** before saving or displaying it:
+
+```bash
+curl -sS -o "$ANALYSIS_DIR/charts/<descriptive_name>.png" "<download_url>"
+```
+
+Parse `download_url` from the tool response JSON. Do not treat the URL as displayable image content.
+
+**Chart output (stdio transport):** Charts may include inline base64 image content instead; no curl download is needed.
 
 **Quick reference (internal tool names; call via `math(name, arguments)`):**
 - **Time-series** → `plot_timeseries`
@@ -247,10 +255,12 @@ Chart tools support optional: `title`, `xlabel`, `ylabel`, `figsize` (width, hei
    - **Apply Critical Design Rules** (zero baseline, meaningful ordering, minimal non-data ink, direct labeling)
    - **Use color purposefully** based on data type (sequential/diverging/categorical)
    - **Verify quality** using Quality Assessment Checklist before finalizing
-9. **Save chart output** - Chart tools (e.g. `math(plot_timeseries, {...})`) return a URL (e.g. "Chart available at: http://..."). **Always** download the chart and save it into the analysis directory:
+9. **Save chart output** - In HTTP mode, chart tools return JSON with a `download_url` field (e.g. `{"download_url":"http://...","mimeType":"image/png"}`). **Always** download the chart with curl and save it into the analysis directory:
    - Create `$ANALYSIS_DIR/charts/` if it does not exist
-   - Use `curl -sS -o "$ANALYSIS_DIR/charts/<descriptive_name>.png" "<url>"` to download the image
+   - Parse `download_url` from the tool response JSON
+   - Use `curl -sS -o "$ANALYSIS_DIR/charts/<descriptive_name>.png" "<download_url>"` to download the image
    - Use a descriptive filename (e.g. `draw_show_production.png`, `p50_p90_timeseries.png`) so charts are identifiable without opening them
+   - Stdio transport still returns inline base64 images (no `download_url`, no curl)
 
 **Key principles:**
 - **ALWAYS create timestamped folder first** - `{project_root}/tmp/{YYYYMMDD}_{HHMMSS}/`
@@ -263,4 +273,4 @@ Chart tools support optional: `title`, `xlabel`, `ylabel`, `figsize` (width, hei
 - **Math MCP handles calculations only** - not data extraction, filtering, or transformation
 - **Token efficiency:** All data processing via DuckDB SQL and jq, LLM only for orchestration
 - **Analysis session integrity:** All artifacts (duckdb file, raw MCP responses, exported CSVs, charts) in the same timestamped folder
-- **Charts live in the analysis dir:** Chart MCP responses include a URL; download via curl and save to `$ANALYSIS_DIR/charts/` so the chart is persisted with the rest of the session
+- **Charts live in the analysis dir:** In HTTP mode, chart MCP responses include a `download_url`; download via curl and save to `$ANALYSIS_DIR/charts/` so the chart is persisted with the rest of the session

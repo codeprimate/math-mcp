@@ -78,19 +78,19 @@ async def _run_one_tool(
 
         if name in plot_output.PLOT_TOOL_NAMES:
             try:
-                url = plot_output.maybe_save_plot_output(
-                    content, app.get_context()
+                try:
+                    ctx = app.get_context()
+                except ValueError:
+                    ctx = None
+                content, _structured = plot_output.transform_plot_response(
+                    content, ctx
                 )
-                if url:
-                    content.append(
-                        types.TextContent(
-                            type="text",
-                            text=f"Chart available at: {url}",
-                        )
-                    )
             except Exception as exc:
                 logger.warning(
-                    "Failed to save plot output for %s: %s", name, exc, exc_info=True
+                    "Failed to transform plot output for %s: %s",
+                    name,
+                    exc,
+                    exc_info=True,
                 )
 
         return (content, False)

@@ -40,6 +40,14 @@ transport_security = TransportSecuritySettings(
     allowed_hosts=allowed_hosts
 )
 
+
+def _safe_plot_context(app: FastMCP):
+    try:
+        return app.get_context()
+    except ValueError:
+        return None
+
+
 def _attach_plot_url_handler(app: FastMCP) -> None:
     """Attach handler to save plot outputs to disk.
     
@@ -72,40 +80,37 @@ def _attach_plot_url_handler(app: FastMCP) -> None:
                     )
                 )
         
-        # Post-process: save plot files and add URL to response
+        # Post-process: HTTP clients get download_url JSON; stdio keeps inline image
         if not result.root.isError and req.params.name in plot_output.PLOT_TOOL_NAMES:
             try:
-                # Extract content from result (ServerResult.root contains CallToolResult)
                 original_content = result.root.content
                 content = list(original_content) if original_content else []
-                
-                # Save plot to file and get URL
-                url = plot_output.maybe_save_plot_output(content, app.get_context())
-                
-                # Add URL as first content so the link is always visible (e.g. when client cannot decode SVG)
-                if url:
-                    format_label = "SVG" if url.endswith(".svg") else "PNG"
-                    url_text = types.TextContent(
-                        type="text",
-                        text=f"Chart ({format_label}) available at: {url}",
+                content, structured = plot_output.transform_plot_response(
+                    content, _safe_plot_context(app)
+                )
+
+                update_fields: dict[str, object] = {
+                    "content": (
+                        tuple(content)
+                        if isinstance(original_content, tuple)
+                        else content
                     )
-                    content.insert(0, url_text)
-                    
-                    # Update the result in place by modifying the content directly
-                    # FastMCP should serialize the updated content
-                    if hasattr(result.root, 'content'):
-                        # Try to update content directly if it's mutable
-                        try:
-                            result.root.content = tuple(content) if isinstance(result.root.content, tuple) else content
-                        except (AttributeError, TypeError):
-                            # If direct assignment doesn't work, create new objects
-                            updated_result = result.root.model_copy(update={"content": tuple(content) if isinstance(original_content, tuple) else content})
-                            result = result.model_copy(update={"root": updated_result})
+                }
+                if structured is not None:
+                    update_fields["structuredContent"] = structured
+
+                if hasattr(result.root, "content"):
+                    try:
+                        for field, value in update_fields.items():
+                            setattr(result.root, field, value)
+                    except (AttributeError, TypeError):
+                        updated_result = result.root.model_copy(update=update_fields)
+                        result = result.model_copy(update={"root": updated_result})
             except Exception as exc:
-                # Log error but don't fail the request
                 import logging
+
                 logger = logging.getLogger(__name__)
-                logger.warning(f"Failed to save plot output: {exc}", exc_info=True)
+                logger.warning("Failed to transform plot output: %s", exc, exc_info=True)
         
         return result
 

@@ -184,27 +184,20 @@ def register_meta_tools(mcp_app: FastMCP, app: FastMCP) -> None:
                 normalized.append(TextContent(type="text", text=str(item)))
         if tool in plot_output.PLOT_TOOL_NAMES:
             try:
-                url = plot_output.maybe_save_plot_output(normalized, app.get_context())
-                if url:
-                    url_text = TextContent(
-                        type="text", text=f"Chart available at: {url}"
-                    )
-                    # Some MCP clients (e.g. Cursor) fail on image/svg+xml with
-                    # "Mime type application/xml does not support decoding",
-                    # which aborts the whole result. Return only the URL for SVG
-                    # so the agent always gets the link; they can open it to view.
-                    has_svg = any(
-                        getattr(c, "mimeType", "") == "image/svg+xml"
-                        for c in normalized
-                        if isinstance(c, ImageContent)
-                    )
-                    if has_svg:
-                        return url_text.text
-                    normalized.insert(0, url_text)
+                try:
+                    ctx = app.get_context()
+                except ValueError:
+                    ctx = None
+                normalized, _structured = plot_output.transform_plot_response(
+                    normalized, ctx
+                )
             except Exception as exc:
                 import logging
                 logging.getLogger(__name__).warning(
-                    "Failed to save plot output for %s: %s", tool, exc, exc_info=True
+                    "Failed to transform plot output for %s: %s",
+                    tool,
+                    exc,
+                    exc_info=True,
                 )
         # Return content list so MCP can serialize (image + text). If single text, caller may expect str.
         if len(normalized) == 1 and isinstance(normalized[0], TextContent):

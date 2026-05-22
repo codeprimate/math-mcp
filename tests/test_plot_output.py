@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import base64
+import json
 import sys
 from pathlib import Path
 
-from mcp.types import ImageContent
+from mcp.types import ImageContent, TextContent
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
@@ -183,3 +184,87 @@ def test_maybe_save_plot_output_returns_none_without_base_url():
         mimeType="image/png",
     )
     assert plot_output.maybe_save_plot_output([image], None) is None
+
+
+def test_transform_plot_response_returns_download_url_json_for_http(tmp_path, monkeypatch):
+    monkeypatch.setenv("MCP_OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        plot_output,
+        "_utc_date_and_timestamp",
+        lambda: ("2026-01-15", "20260115143025"),
+    )
+
+    payload = b"plot-bytes"
+    image = ImageContent(
+        type="image",
+        data=base64.b64encode(payload).decode("utf-8"),
+        mimeType="image/png",
+    )
+    headers = {
+        "x-forwarded-proto": "https",
+        "x-forwarded-host": "api.example.com",
+        "mcp-session-id": "abc123",
+    }
+    context = DummyContext(DummyRequest(headers=headers))
+
+    content, structured = plot_output.transform_plot_response([image], context)
+    assert len(content) == 1
+    assert isinstance(content[0], TextContent)
+    assert structured is not None
+
+    payload_json = json.loads(content[0].text)
+    assert payload_json == structured
+    assert payload_json["download_url"] == (
+        "https://api.example.com/outputs/charts/2026-01-15/abc123/chart-20260115143025.png"
+    )
+    assert payload_json["mimeType"] == "image/png"
+
+
+def test_transform_plot_response_keeps_already_transformed_content():
+    structured = {
+        plot_output.DOWNLOAD_URL_JSON_KEY: "http://example.com/chart.png",
+        plot_output.MIME_TYPE_JSON_KEY: "image/png",
+    }
+    content = [TextContent(type="text", text=json.dumps(structured))]
+
+    out_content, out_structured = plot_output.transform_plot_response(content, None)
+    assert out_content == content
+    assert out_structured == structured
+
+
+def test_transform_plot_response_keeps_base64_for_stdio():
+    image = ImageContent(
+        type="image",
+        data=base64.b64encode(b"plot-bytes").decode("utf-8"),
+        mimeType="image/png",
+    )
+
+    content, structured = plot_output.transform_plot_response([image], None)
+    assert len(content) == 1
+    assert isinstance(content[0], ImageContent)
+    assert content[0].data == image.data
+    assert structured is None
+
+
+def test_transform_plot_response_falls_back_to_base64_when_http_save_fails(
+    tmp_path, monkeypatch,
+):
+    """If file save fails, HTTP clients must not get a broken empty response."""
+    blocked_output = tmp_path / "blocked"
+    blocked_output.write_text("not-a-directory")
+    monkeypatch.setenv("MCP_OUTPUT_DIR", str(blocked_output))
+    image = ImageContent(
+        type="image",
+        data=base64.b64encode(b"plot-bytes").decode("utf-8"),
+        mimeType="image/png",
+    )
+    headers = {
+        "x-forwarded-proto": "https",
+        "x-forwarded-host": "api.example.com",
+        "mcp-session-id": "abc123",
+    }
+    context = DummyContext(DummyRequest(headers=headers))
+
+    content, structured = plot_output.transform_plot_response([image], context)
+    assert structured is None
+    assert isinstance(content[0], ImageContent)

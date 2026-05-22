@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import os
 import re
@@ -32,6 +33,92 @@ PLOT_TOOL_NAMES = {
     "plot_ode_solution",
     "plot_pie",
 }
+
+DOWNLOAD_URL_JSON_KEY = "download_url"
+MIME_TYPE_JSON_KEY = "mimeType"
+
+
+def _build_download_url_dict(download_url: str, mime_type: str) -> dict[str, str]:
+    return {
+        DOWNLOAD_URL_JSON_KEY: download_url,
+        MIME_TYPE_JSON_KEY: mime_type,
+    }
+
+
+def _build_download_url_payload(download_url: str, mime_type: str) -> str:
+    return json.dumps(_build_download_url_dict(download_url, mime_type))
+
+
+def _safe_request_context(context: Context | None) -> Any | None:
+    """Return request_context without raising when FastMCP has no active request."""
+    if context is None:
+        return None
+    try:
+        return context.request_context
+    except (ValueError, AttributeError):
+        return None
+
+
+def _parse_download_url_content(
+    content: Sequence[types.TextContent | types.ImageContent | types.EmbeddedResource],
+) -> tuple[list[types.TextContent | types.ImageContent], dict[str, Any]] | None:
+    """Return content and structured payload if already transformed."""
+    for item in content:
+        if not isinstance(item, types.TextContent):
+            continue
+        try:
+            parsed = json.loads(item.text)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict) and DOWNLOAD_URL_JSON_KEY in parsed:
+            return list(content), parsed
+    return None
+
+
+def _has_http_base_url(context: Context | None) -> bool:
+    try:
+        request, headers = _extract_request_and_headers(context)
+    except ValueError:
+        return False
+    return _get_base_url(request, headers) is not None
+
+
+def transform_plot_response(
+    content: Sequence[types.TextContent | types.ImageContent | types.EmbeddedResource],
+    context: Context | None,
+) -> tuple[list[types.TextContent | types.ImageContent], dict[str, Any] | None]:
+    """Return plot tool content appropriate for the client transport.
+
+    HTTP clients receive JSON with download_url only (no base64 ImageContent).
+    Stdio clients receive the original content unchanged (inline base64 image).
+
+    Returns:
+        Tuple of (content items, structured_content). structured_content is set
+        for HTTP plot transforms so callers can replace FastMCP structuredContent.
+    """
+    existing = _parse_download_url_content(content)
+    if existing is not None:
+        return existing
+
+    image = _find_image_content(content)
+    if image is None:
+        return list(content), None
+
+    if not _has_http_base_url(context):
+        return list(content), None
+
+    download_url = _save_image_content(image, context)
+    if not download_url:
+        return list(content), None
+
+    mime_type = image.mimeType or "image/png"
+    structured = _build_download_url_dict(download_url, mime_type)
+    return [
+        types.TextContent(
+            type="text",
+            text=json.dumps(structured),
+        )
+    ], structured
 
 
 def maybe_save_plot_output(
@@ -191,7 +278,7 @@ def _extract_session_id(
     if context is None:
         return None
 
-    request_context = getattr(context, "request_context", None)
+    request_context = _safe_request_context(context)
     if request_context is None:
         return None
 
@@ -284,7 +371,7 @@ def _find_request_object(context: Context) -> Any | None:
     ]
     
     # Check request_context.request
-    request_context = getattr(context, "request_context", None)
+    request_context = _safe_request_context(context)
     if request_context is not None:
         candidates.append(getattr(request_context, "request", None))
         
@@ -305,7 +392,7 @@ def _headers_from_context(context: Context) -> Mapping[str, str] | None:
     
     Tries multiple locations where headers might be stored in the context.
     """
-    request_context = getattr(context, "request_context", None)
+    request_context = _safe_request_context(context)
     if request_context is None:
         return None
 

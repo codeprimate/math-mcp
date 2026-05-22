@@ -580,7 +580,18 @@ The Math MCP server includes powerful statistical analysis tools for data analys
 
 ## Plotting & Visualization
 
-The Math MCP server includes powerful plotting tools for data visualization. All plots are returned as inline images that appear directly in your conversation.
+The Math MCP server includes powerful plotting tools for data visualization. In HTTP mode, plots are saved to disk and returned as a `download_url` JSON field. In stdio mode, plots are returned as inline base64 images.
+
+### Downloading charts (HTTP mode)
+
+Chart tools (`plot_timeseries`, `plot_bar`, etc.) return JSON like `{"download_url":"http://localhost:8008/outputs/charts/...","mimeType":"image/png"}` — not inline image data. **Download the chart with curl** before viewing or embedding:
+
+```bash
+# Parse download_url from the plot tool response, then:
+curl -sS -o chart.png "<download_url>"
+```
+
+Do not treat `download_url` as displayable image content. Stdio transport returns inline base64 images instead; no curl download is needed.
 
 ### Available Plot Types
 
@@ -660,8 +671,8 @@ You can solve differential equations and immediately visualize the results:
 
 ### Features
 
-- **In-memory only**: No disk I/O, all images generated in memory
-- **Automatic display**: Images appear inline in Cursor/Claude conversations
+- **HTTP output:** Charts are saved under `/outputs/charts/` and returned as JSON with `download_url` and `mimeType`. **Download with curl** — see [Downloading charts (HTTP mode)](#downloading-charts-http-mode) above.
+- **Stdio output:** Inline base64 images for direct display in MCP clients (no curl)
 - **Consistent styling**: Professional appearance with grid lines, labels, and legends
 - **Memory efficient**: Figures are immediately closed after saving
 - **IT-focused**: Designed for operational data visualization
