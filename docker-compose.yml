@@ -6,6 +6,8 @@ services:
     image: math-mcp:latest
     container_name: math-mcp-server
     restart: unless-stopped
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
     environment:
       # Transport mode: "stdio" or "streamable-http"
       # Use "streamable-http" for HTTP endpoint (compatible with mcp-remote)
@@ -43,8 +45,8 @@ services:
     # Health check only works for HTTP transport mode
     # For stdio mode, set DISABLE_HEALTHCHECK=true in .env or remove this section
     healthcheck:
-      # POST request with proper headers to initialize the MCP server
-      test: ["CMD-SHELL", "python -c \"import urllib.request, json; req = urllib.request.Request('http://localhost:8008/mcp', data=json.dumps({'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2024-11-05','capabilities':{},'clientInfo':{'name':'healthcheck','version':'1.0'}}}).encode(), headers={'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream'}); urllib.request.urlopen(req, timeout=5).read()\" || exit 1"]
+      # TCP ping — avoids creating MCP sessions that leak memory
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('localhost', 8008), timeout=5).close()"]
       interval: 30s
       timeout: 10s
       retries: 3
