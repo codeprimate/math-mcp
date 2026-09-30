@@ -33,10 +33,15 @@ services:
       # May be needed for @modelcontextprotocol/server-remote compatibility
       MCP_DISABLE_DNS_REBINDING_PROTECTION: ${MCP_DISABLE_DNS_REBINDING_PROTECTION:-true}
     ports:
-      # Map host port to container port
-      # Format: "host-port:container-port"
-      # Change 8008:8008 to use a different host port (e.g., "9000:8008")
-      - "${MCP_HOST_PORT:-8008}:${MCP_PORT:-8008}"
+      # Chassis-only publish. Two host-local addresses, no LAN binding:
+      #   127.0.0.1  — native processes on slab (Hermes agent, scripts)
+      #   172.17.0.1 — docker0 gateway; containers reach it as
+      #                host.docker.internal:8008 (Docker pins host-gateway to
+      #                172.17.0.1 regardless of the container's own network)
+      # Neither address is routable from another host, so scope does not depend
+      # on the nftables default-drop policy.
+      - "127.0.0.1:${MCP_HOST_PORT:-8008}:${MCP_PORT:-8008}"
+      - "172.17.0.1:${MCP_HOST_PORT:-8008}:${MCP_PORT:-8008}"
     volumes:
       # Mount output directory for plot files (using named volume)
       - "outputs:/outputs"
