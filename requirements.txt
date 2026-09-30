@@ -1,6 +1,8 @@
 sympy>=1.12
-mcp[cli]>=1.0.0
+mcp[cli]>=1.0.0,<2  # v2 renamed FastMCP and broke the v1 server API
 pydantic>=2.0
 scipy>=1.10
 numpy>=1.24
 matplotlib>=3.7.0
+# CVE-2026-63374 (TLSStream IDNA-2003 cert spoofing) — fix floor 4.14.2
+anyio>=4.14.2

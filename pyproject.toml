@@ -6,7 +6,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "sympy>=1.12",
-    "mcp[cli]>=1.0.0",
+    "mcp[cli]>=1.0.0,<2",  # v2 renamed FastMCP and broke the v1 server API
+    "anyio>=4.14.2",  # CVE-2026-63374 fix floor
     "scipy>=1.10",
     "numpy>=1.24",
     "matplotlib>=3.7.0",
