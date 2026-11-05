@@ -4,5 +4,8 @@ pydantic>=2.0
 scipy>=1.10
 numpy>=1.24
 matplotlib>=3.7.0
+# pillow CVE family (CVE-2026-112393/112398/112403/112900/96639, fix >=13.0.0) —
+# pillow is transitive via matplotlib; explicit floor so the fix lands and stays
+pillow>=13.0.0
 # CVE-2026-63374 (TLSStream IDNA-2003 cert spoofing) — fix floor 4.14.2
 anyio>=4.14.2

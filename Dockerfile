@@ -29,8 +29,10 @@ FROM python:3.12-alpine
 
 WORKDIR /app
 
-# Install runtime dependencies for matplotlib
-RUN apk add --no-cache \
+# Install runtime dependencies for matplotlib.
+# apk upgrade refreshes base-OS packages (brotli-libs CVE-2026-111497 -> 1.2.1-r0).
+RUN apk upgrade --no-cache \
+    && apk add --no-cache \
     libstdc++ \
     freetype \
     libpng
